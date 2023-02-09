@@ -9,6 +9,7 @@ env:
 
 jobs:
   ci:
+    name: Test on Linux with Pandoc ${{ env.PANDOC_VERSION }}
     runs-on: ubuntu-latest
     steps:
       - name: Get source
