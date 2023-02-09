@@ -117,7 +117,7 @@ end
 ---@param els table
 ---@return table
 function Inlines(els)
-    local inline = FORMAT:match('latex')
+    local inline = FORMAT:match('latex') or FORMAT:match('markdown')
     return render_all(els, inline)
 end
 
