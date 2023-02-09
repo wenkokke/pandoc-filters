@@ -58,7 +58,7 @@ plank long clothes.
 
 <div id="theorem-pirate-ipsum-by--benjaminhornigold" class="theorem">
 
-**Theorem 3.1.5** (Pirate ipsum by @BenjaminHornigold).
+**Theorem 3.1.5** (Pirate ipsum by Hornigold (1680)).
 
 Crow’s nest marooned Yellow Jack cutlass code of conduct rope’s end
 belay mizzenmast Spanish Main yard. Carouser broadside cog careen tender
