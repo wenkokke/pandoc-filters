@@ -6,15 +6,6 @@
 ---@copyright Wen Kokke 2023
 local theorem = {}
 
----Check whether a value is a Pandoc element with the given tag.
----
----@param el table
----@param t string
----@return boolean
-local function is_a(el, t)
-    return el ~= nil and el.tag == t
-end
-
 -- The theorem styles.
 local theorem_styles = {
     Definition = {
@@ -134,6 +125,20 @@ local theorem_header_lexer = {
     final_states = {"after_dot"}
 }
 
+---Check whether a value is a Pandoc element with the given tag.
+---
+---@param el table
+---@param t string
+---@return boolean
+local function is_a(el, t)
+    return el ~= nil and el.tag == t
+end
+
+---Check whether a table includes a given element.
+---
+---@param list table
+---@param value string
+---@return boolean
 local function table_includes(list, value)
     for _, item in pairs(list) do
         if item == value then
@@ -143,6 +148,11 @@ local function table_includes(list, value)
     return false
 end
 
+---Run a lexer on a list of Pandoc elements.
+---
+---@param lexer table
+---@param els table
+---@return table
 local function run_lexer(lexer, els)
     local result = {}
     local state = lexer.start_state
@@ -191,8 +201,12 @@ local function run_lexer(lexer, els)
     error(string.format("Lexical error at token '%s' in state '%s'", el, state))
 end
 
--- Parse a list item containing a theorem.
-local function parse_item(head, body)
+-- Lex a definition list item containing a theorem.
+---
+---@param head table
+---@param body table
+---@return table
+local function lex_definition_list_item(head, body)
     local success, result = pcall(function()
         return run_lexer(theorem_header_lexer, head)
     end)
@@ -209,12 +223,16 @@ local function parse_item(head, body)
     end
 end
 
--- Parse a definition list containing only theorems.
-local function parse(el)
+-- Lex a definition list containing only theorems.
+---
+---@param head table
+---@param body table
+---@return table
+local function lex_definition_list(el)
     if is_a(el, 'DefinitionList') and el.content ~= nil then
         local result_list = pandoc.List({})
         for index = 1, #el.content do
-            local success, result_or_error = pcall(parse_item, table.unpack(el.content[index]))
+            local success, result_or_error = pcall(lex_definition_list_item, table.unpack(el.content[index]))
             if success then
                 result_list:insert(result_or_error)
             else
@@ -233,11 +251,11 @@ local function parse(el)
     return nil
 end
 
-local function sanitize_anchor(anchor)
-    return string.lower(string.gsub(anchor, "[^%a%d]", "-"))
-end
-
-local function render_identifier(theorem_info)
+---Render the identifier for a theorem.
+---
+---@param theorem_info table
+---@return string
+local function render_theorem_identifier(theorem_info)
     local theorem_label = nil
     if theorem_info.theorem_name ~= nil then
         theorem_label = pandoc.utils.stringify(pandoc.Inlines(theorem_info.theorem_name))
@@ -249,7 +267,11 @@ local function render_identifier(theorem_info)
     return string.lower(string.gsub(string.format("%s-%s", theorem_info.style.name, theorem_label), "[^%a%d]", "-"))
 end
 
-local function render_item(theorem_info)
+---Render a theorem as a Pandoc element.
+---
+---@param theorem_info table
+---@return table
+local function render_theorem(theorem_info)
     -- Header
     local strong = pandoc.Inlines({})
     strong:insert(pandoc.Str(theorem_info.style.name))
@@ -274,11 +296,15 @@ local function render_item(theorem_info)
     end
     -- Attr
     local blocks = pandoc.Blocks({pandoc.Para(header), table.unpack(theorem_info.body)})
-    local attr = pandoc.Attr(render_identifier(theorem_info), theorem_info.style.classes)
+    local attr = pandoc.Attr(render_theorem_identifier(theorem_info), theorem_info.style.classes)
     return pandoc.Div(blocks, attr)
 end
 
-local function render_item_latex(theorem_info)
+---Render a theorem as a Pandoc element for LaTeX.
+---
+---@param theorem_info table
+---@return table
+local function render_theorem_latex(theorem_info)
     local header = pandoc.Inlines({})
     local footer = pandoc.Inlines({})
     -- Start group
@@ -314,23 +340,26 @@ local function render_item_latex(theorem_info)
     return pandoc.Blocks({pandoc.Para(header), table.unpack(theorem_info.body), pandoc.Para(footer)})
 end
 
-local function render(theorem_info_list)
-
+---Render a list of theorems as a list of Pandoc elements.
+---
+---@param theorem_info_list table
+---@return table
+local function render_theorems(theorem_info_list)
     local output = pandoc.Blocks({})
     for index = 1, #theorem_info_list do
         if FORMAT:match('latex') then
-            output:extend(render_item_latex(theorem_info_list[index]))
+            output:extend(render_theorem_latex(theorem_info_list[index]))
         else
-            output:insert(render_item(theorem_info_list[index]))
+            output:insert(render_theorem(theorem_info_list[index]))
         end
     end
     return output
 end
 
 DefinitionList = function(el)
-    local theorem_info_list = parse(el)
+    local theorem_info_list = lex_definition_list(el)
     if theorem_info_list ~= nil then
-        return render(theorem_info_list)
+        return render_theorems(theorem_info_list)
     else
         return nil
     end
