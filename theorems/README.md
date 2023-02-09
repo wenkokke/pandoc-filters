@@ -6,7 +6,9 @@ This filter renders, _e.g._, this Markdown...
 
 ```markdown
 Theorem (Pirate ipsum).
-: Cog pinnace broadside crack Jennys tea cup scourge of the seven seas knave me Arr yardarm Davy Jones' Locker. Fore league cutlass shrouds six pounders gun bilge rat lookout code of conduct pillage.
+: Cog pinnace broadside crack Jennys tea cup scourge of the seven seas
+knave me Arr yardarm Davy Jones' Locker. Fore league cutlass shrouds six
+pounders gun bilge rat lookout code of conduct pillage.
 ```
 
 ...as follows, using [GitHub Flavoured Markdown]...
@@ -43,7 +45,11 @@ If you want the filter to insert a specific number, simply use it in the input s
 
 ```markdown
 Theorem 3.1.5 (Pirate ipsum by @BenjaminHornigold).
-: Crow's nest marooned Yellow Jack cutlass code of conduct rope's end belay mizzenmast Spanish Main yard. Carouser broadside cog careen tender wherry provost Arr red ensign chase guns. Strike colors furl man-of-war keelhaul smartly dead men tell no tales red ensign crow's nest walk the plank long clothes.
+: Crow's nest marooned Yellow Jack cutlass code of conduct rope's end
+belay mizzenmast Spanish Main yard. Carouser broadside cog careen tender
+wherry provost Arr red ensign chase guns. Strike colors furl man-of-war
+keelhaul smartly dead men tell no tales red ensign crow's nest walk the
+plank long clothes.
 ```
 
 ...as follows, using [GitHub Flavoured Markdown]...
