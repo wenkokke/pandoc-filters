@@ -4,21 +4,23 @@ defaults:
   run:
     shell: sh
 
-env:
-  PANDOC_VERSION: 2.19
-
 jobs:
   ci:
-    name: Test on Linux with Pandoc ${{ env.PANDOC_VERSION }}
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} / Pandoc ${{ matrix.pandoc-version }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        pandoc-version: ["2.19.2", "3.0.1"]
+
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Get source
         uses: actions/checkout@v3
 
-      - name: Setup Pandoc
+      - name: Setup Pandoc ${{ matrix.pandoc-version }}
         uses: pandoc/actions/setup@v1.0.0
         with:
-          version: ${{ env.PANDOC_VERSION }}
+          version: ${{ matrix.pandoc-version }}
 
       - name: Test theorems
         run: make test
