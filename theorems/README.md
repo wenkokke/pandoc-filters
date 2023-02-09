@@ -73,16 +73,19 @@ plank long clothes.
 ...or as the following LaTeX...
 
 ```latex
-{\renewcommand{\thetheorem}{3.1.5}\begin{theorem}[Pirate ipsum by
-Hornigold (1680)]
+{
+  \renewcommand{\thetheorem}{3.1.5}
+  \begin{theorem}[Pirate ipsum by \citet{BenjaminHornigold}]
 
-Crow's nest marooned Yellow Jack cutlass code of conduct rope's end
-belay mizzenmast Spanish Main yard. Carouser broadside cog careen tender
-wherry provost Arr red ensign chase guns. Strike colors furl man-of-war
-keelhaul smartly dead men tell no tales red ensign crow's nest walk the
-plank long clothes.
+  Crow's nest marooned Yellow Jack cutlass code of conduct rope's end
+  belay mizzenmast Spanish Main yard. Carouser broadside cog careen tender
+  wherry provost Arr red ensign chase guns. Strike colors furl man-of-war
+  keelhaul smartly dead men tell no tales red ensign crow's nest walk the
+  plank long clothes.
 
-\end{theorem}\addtocounter{theorem}{-1}}
+  \end{theorem}
+  \addtocounter{theorem}{-1}
+}
 ```
 
 The filter supports the following theorem keywords:
