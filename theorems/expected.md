@@ -27,7 +27,7 @@ pounders gun bilge rat lookout code of conduct pillage.
 
 # The variant by Benjamin Hornigold
 
-::: {#theorem-pirate-ipsum-by--benjaminhornigold .theorem}
+::: {#theorem-pirate-ipsum-by-hornigold--1680- .theorem}
 **Theorem 3.1.5** (Pirate ipsum by @BenjaminHornigold).
 
 Crow's nest marooned Yellow Jack cutlass code of conduct rope's end
