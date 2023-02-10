@@ -92,25 +92,28 @@ The filter supports the following theorem keywords:
 
 | Keyword      | LaTeX environment |
 | ------------ | ----------------- |
+| `Assumption` | `assumption`      |
 | `Claim`      | `claim`           |
 | `Definition` | `definition`      |
-| `Theorem`    | `theorem`         |
+| `Example`    | `example`         |
 | `Lemma`      | `lemma`           |
 | `Proof`      | `proof`           |
-| `Example`    | `example`         |
-| `Assumption` | `assumption`      |
+| `Theorem`    | `theorem`         |
 
-To use the filter with LaTeX, you'll need to include a snippet in your preamble to setup theorems. An example is included in [`include-in-header.tex`](include-in-header.tex).
+
+
+To use the filter with LaTeX, you'll need to include a snippet in your preamble to setup theorems, *e.g.*,
 
 ```latex
 % file: include-in-header.tex
 \usepackage{amsthm}
-\newtheorem{definition}{Definition}
-\newtheorem{lemma}{Lemma}
-\newtheorem{theorem}{Theorem}
-\newtheorem{claim}{Claim}
-\newtheorem{example}{Example}
 \newtheorem{assumption}{Assumption}
+\newtheorem{claim}{Claim}
+\newtheorem{definition}{Definition}
+\newtheorem{example}{Example}
+\newtheorem{lemma}{Lemma}
+% proof is defined by amsthm
+\newtheorem{theorem}{Theorem}
 ```
 
 ---
