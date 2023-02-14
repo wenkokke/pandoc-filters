@@ -10,5 +10,7 @@ test: sample.md theorem.lua
 
 .PHONY: test-update
 test-update: sample.md theorem.lua
-	@$(PANDOC) -C -L theorem.lua -t markdown sample.md -o expected.md
-	@$(PANDOC) -C -L theorem.lua --natbib -t latex sample.md -o expected.tex
+	@$(PANDOC) -C -L theorem.lua -t markdown sample.md \
+		> expected.md
+	@$(PANDOC) -C -L theorem.lua --natbib -t latex sample.md \
+		> expected.tex
