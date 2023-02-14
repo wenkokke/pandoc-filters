@@ -6,7 +6,7 @@
 ---@copyright Wen Kokke 2023
 local embed_pdf = {}
 
--- The function `pandoc.template.apply` wasn't supported until 3.0.1.
+-- Uses `pandoc.template.apply`, which was added in Pandoc 3.0.1.
 PANDOC_VERSION:must_be_at_least '3.0.1'
 
 -- The PDF embed templates.

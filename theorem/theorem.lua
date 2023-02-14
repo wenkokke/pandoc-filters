@@ -6,6 +6,9 @@
 ---@copyright Wen Kokke 2023
 local theorem = {}
 
+-- Uses `pandoc.Blocks`, which was added in Pandoc 2.17.
+PANDOC_VERSION:must_be_at_least '2.17'
+
 -- The theorem styles.
 local theorem_styles = {
     Definition = {
