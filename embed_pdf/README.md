@@ -1,4 +1,4 @@
-!(Requires Pandoc ^3.0.1)[https://img.shields.io/badge/pandoc-%5E3.0.1-orange)
+![Requires Pandoc ^3.0.1](https://img.shields.io/badge/pandoc-%5E3.0.1-orange)
 
 # embed_pdf
 
