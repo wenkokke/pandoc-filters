@@ -61,13 +61,18 @@ local function render(els, index, inline)
         local space = cite_content[#cite_content - 1]
         local last_author_name = cite_content[#cite_content - 2]
         if not is_a(parenthetical, 'Str') then
-            error("Expected parenthetical, found: '" .. pandoc.utils.stringify(parenthetical) .. "'\n")
+            error("Expected parenthetical, found: '" .. pandoc.utils.stringify(parenthetical))
         elseif not parenthetical.text:match("^%([^)]*%)$") then
-            error("Expected parenthetical, found '" .. pandoc.utils.stringify(parenthetical) .. "'\n")
+            if parenthetical.text:match("^@") then
+                io.stderr:write("Warning: unresolved citation '" .. parenthetical.text .. "'. Did you run Pandoc with --citeproc?\n")
+                return {cite, poss}
+            else
+                error("Expected parenthetical, found '" .. pandoc.utils.stringify(parenthetical))
+            end
         elseif not is_a(space, "Space") then
-            error("Expected space, found: '" .. pandoc.utils.stringify(space) .. "'\n")
+            error("Expected space, found: '" .. pandoc.utils.stringify(space))
         elseif not is_a(last_author_name, "Str") then
-            error("Expected author name, found '" .. pandoc.utils.stringify(last_author_name) .. "'\n")
+            error("Expected author name, found '" .. pandoc.utils.stringify(last_author_name))
         else
             -- Remove the last two elements
             cite_content:remove(#cite_content)
