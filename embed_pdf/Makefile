@@ -1,6 +1,6 @@
 DIFF ?= diff --strip-trailing-cr -u
 PANDOC ?= pandoc
-PRETTIER ?= npx prettier
+PRETTIER ?= npm x prettier --
 
 # Testing the embed_pdf filter uses prettier to standardise the HTML output
 # across Pandoc versions. By default, it runs the latest version of Prettier
