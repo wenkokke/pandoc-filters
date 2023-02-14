@@ -10,5 +10,7 @@ test: sample.md possessive_cite.lua
 
 .PHONY: test-update
 test-update: sample.md possessive_cite.lua
-	@$(PANDOC) -C -L possessive_cite.lua -t markdown sample.md -o expected.md
-	@$(PANDOC) -C -L possessive_cite.lua -t latex sample.md -o expected.tex
+	@$(PANDOC) -C -L possessive_cite.lua -t markdown sample.md \
+		> expected.md
+	@$(PANDOC) -C -L possessive_cite.lua -t latex sample.md \
+		> expected.tex
