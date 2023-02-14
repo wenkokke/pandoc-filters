@@ -1,3 +1,5 @@
+![Requires Pandoc ^2.17](https://img.shields.io/badge/pandoc-%5E2.17-orange)
+
 # possessive_cite
 
 A [Pandoc] filter to typeset possessive citations.

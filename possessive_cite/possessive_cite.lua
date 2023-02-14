@@ -6,6 +6,9 @@
 ---@copyright Wen Kokke 2023
 local possessive_cite = {}
 
+-- Uses `pandoc.Inlines`, which was added in Pandoc 2.17.
+PANDOC_VERSION:must_be_at_least '2.17'
+
 ---Check whether a value is a Pandoc element with the given tag.
 ---
 ---@param el table

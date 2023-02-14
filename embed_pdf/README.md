@@ -1,6 +1,6 @@
-# embed_pdf
-
 !(Requires Pandoc ^3.0.1)[https://img.shields.io/badge/pandoc-%5E3.0.1-orange)
+
+# embed_pdf
 
 A [Pandoc] filter to typeset embedded PDFs in LaTeX and HTML.
 
