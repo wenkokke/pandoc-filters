@@ -5,10 +5,36 @@ defaults:
     shell: sh
 
 jobs:
-  ci:
-    name: ${{ matrix.os }} / Pandoc ${{ matrix.pandoc-version }}
+  embed_pdf:
+    name: embed_pdf / ${{ matrix.os }} / Pandoc ${{ matrix.pandoc-version }}
     strategy:
-      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        pandoc-version:
+          - "3.0.1"
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Get source
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - name: Setup Pandoc ${{ matrix.pandoc-version }}
+        uses: pandoc/actions/setup@v1.0.0
+        with:
+          version: ${{ matrix.pandoc-version }}
+
+      - name: Test filter
+        run: make test
+        working-directory: embed_pdf
+
+  possessive_cite:
+    name: possessive_cite / ${{ matrix.os }} / Pandoc ${{ matrix.pandoc-version }}
+    strategy:
       matrix:
         os: [ubuntu-latest]
         pandoc-version:
@@ -37,15 +63,37 @@ jobs:
         with:
           version: ${{ matrix.pandoc-version }}
 
-      - name: Test embed_pdf filter
-        if: matrix.pandoc-version == '3.0.1'
-        run: make test
-        working-directory: embed_pdf
-
-      - name: Test possessive_cite filter
+      - name: Test filter
         run: make test
         working-directory: possessive_cite
 
-      - name: Test theorem filter
+  theorem:
+    name: theorem / ${{ matrix.os }} / Pandoc ${{ matrix.pandoc-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        pandoc-version:
+          - "2.17"
+          - "2.17.0.1"
+          - "2.17.1"
+          - "2.17.1.1"
+          - "2.18"
+          - "2.19"
+          - "2.19.1"
+          - "2.19.2"
+          - "3.0.1"
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Get source
+        uses: actions/checkout@v3
+
+      - name: Setup Pandoc ${{ matrix.pandoc-version }}
+        uses: pandoc/actions/setup@v1.0.0
+        with:
+          version: ${{ matrix.pandoc-version }}
+
+      - name: Test filter
         run: make test
         working-directory: theorem
