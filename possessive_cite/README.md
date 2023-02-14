@@ -20,7 +20,7 @@ We all love Hornigold's famous proof. But is it real? No. Probably not.
 
 The filter must be run after `--citeproc`, and all citations must be fully resolved.
 
-The filter currently inlines the author name for every target, including LaTeX, which might give inconsistent results when, *e.g.*, Pandoc and natbib disagree on the maximum number of author names to list before using *et al*. It is easy to adapt the code to output a command such as `\citepos`, see [this StackExchange answer](https://tex.stackexchange.com/a/125706):
+The filter currently inlines the author name for every target, including LaTeX, which might give inconsistent results when, *e.g.*, Pandoc and natbib disagree on the maximum number of author names to list before using *et al*. It is easy to adapt the code to output a command such as `\citepos`, see [this StackExchange answer].
 ```latex
 \usepackage{natbib}
 \usepackage{etoolbox}
@@ -45,4 +45,7 @@ The filter currently inlines the author name for every target, including LaTeX, 
 ```
 However, this is not supported by [natbib], and requiring this snippet to be present in the preamble is, unfortunately, quite brittle.
 
+[pandoc]: https://pandoc.org/
+[github flavoured markdown]: https://github.github.com/gfm/
+[this StackExchange answer]: https://tex.stackexchange.com/a/125706
 [natbib]: https://www.ctan.org/pkg/natbib

@@ -104,7 +104,7 @@ The filter supports the following theorem keywords:
 
 
 
-To use the filter with LaTeX, you'll need to include a snippet in your preamble to setup theorems, *e.g.*,
+To use the filter with LaTeX, you'll need to setup [amsthm]-compatible theorems, *e.g.*, by include the following snippet in your preamble.
 
 ```latex
 % file: include-in-header.tex
@@ -123,8 +123,8 @@ To use the filter with LaTeX, you'll need to include a snippet in your preamble 
 This filter was inspired by [@sliminality]'s [pandoc-theorem] filter.
 
 [pandoc]: https://pandoc.org/
+[github flavoured markdown]: https://github.github.com/gfm/
 [definition lists]: https://pandoc.org/MANUAL.html#definition-lists
 [amsthm]: https://www.ctan.org/pkg/amsthm
 [@sliminality]: https://github.com/sliminality
 [pandoc-theorem]: https://github.com/sliminality/pandoc-theorem
-[github flavoured markdown]: https://github.github.com/gfm/

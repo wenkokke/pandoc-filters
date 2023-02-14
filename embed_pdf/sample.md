@@ -8,4 +8,4 @@
   html:height="480"
 }
 
-[theorem]: ../theorem/
+[theorem]: ../theorem/sample.md

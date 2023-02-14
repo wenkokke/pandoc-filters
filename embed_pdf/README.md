@@ -34,9 +34,13 @@ This filter renders, _e.g._, this Markdown...
 \includepdf[pages=-,addtotoc={1, section, 1, Sample, sample:theorem},]{sample.pdf}
 ```
 
-To use the filter with LaTeX, you'll need to include a snippet in your preamble to setup theorems, *e.g.*,
+To use the filter with LaTeX, you'll need import the [pdfpages] package, *e.g.*, by including a the following snippet in your preamble.
 
 ```latex
 % file: include-in-header.tex
 \usepackage{pdfpages}
 ```
+
+[pandoc]: https://pandoc.org/
+[github flavoured markdown]: https://github.github.com/gfm/
+[pdfpages]: https://www.ctan.org/pkg/pdfpages
