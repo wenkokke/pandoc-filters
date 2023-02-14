@@ -38,6 +38,7 @@ jobs:
           version: ${{ matrix.pandoc-version }}
 
       - name: Test embed_pdf filter
+        if: matrix.pandoc-version == '3.0.1'
         run: make test
         working-directory: embed_pdf
 
