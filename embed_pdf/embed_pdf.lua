@@ -12,7 +12,20 @@ PANDOC_VERSION:must_be_at_least '3.0.1'
 -- The PDF embed templates.
 local embed_pdf_templates = {
     html = [[
-        <embed src="${ src }" type="application/pdf" ${ for(opts) }${ it.key }="${ it.value }" ${ endfor }/>
+        <object
+            type="application/pdf"
+            data="${ src }"
+            ${ if(opts) }
+            ${ for(opts) }
+            ${ it.key }="${ it.value }"
+            ${ endfor }
+            ${ endif }
+            >
+            <p>
+                Your browser does not support PDF objects.
+                <a href="${ src }">Click here to view the PDF.</a>
+            </p>
+        </object>
     ]],
     latex = [[
         \includepdf[${ for(opts) }${ it.key }=${ it.value },${ endfor }]{${ src }}
