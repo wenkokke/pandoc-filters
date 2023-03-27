@@ -267,7 +267,7 @@ local previous_identifier = "unknown"
 local function render_theorem_identifier(theorem_info)
     local theorem_label = nil
     if theorem_info.theorem_name ~= nil then
-        theorem_label = pandoc.utils.stringify(pandoc.Inlines(theorem_info.theorem_name))
+        theorem_label = string.gsub("%W", "-", pandoc.utils.stringify(pandoc.Inlines(theorem_info.theorem_name)))
     elseif theorem_info.custom_counter ~= nil then
         theorem_label = theorem_info.custom_counter
     elseif theorem_info.style.counter ~= nil then
@@ -275,7 +275,7 @@ local function render_theorem_identifier(theorem_info)
     else
         theorem_label = "for-" .. previous_identifier
     end
-    previous_identifier = string.lower(string.gsub(string.format("%s-%s", theorem_info.style.name, theorem_label), "[^%a%d]", "-"))
+    previous_identifier = string.lower(string.format("%s-%s", theorem_info.style.name, theorem_label))
     return previous_identifier
 end
 
@@ -375,5 +375,21 @@ DefinitionList = function(el)
         return render_theorems(theorem_info_list)
     else
         return nil
+    end
+end
+
+Str = function(el)
+    if is_a(el, 'Str') and el.text ~= nil then
+        for theorem_style, _ in pairs(theorem_styles) do
+            local pattern = string.format('^#%s%%-(%%w*)$', string.lower(theorem_style))
+            local identifier = string.match(el.text, pattern)
+            if identifier then
+                if FORMAT:match('latex') then
+                    return pandoc.RawInline('latex', string.format('\\cref{%s}', el.text))
+                else
+                    return pandoc.Link(string.format("%s %s", theorem_style, identifier), el.text)
+                end
+            end
+        end
     end
 end
