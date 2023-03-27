@@ -385,7 +385,7 @@ Str = function(el)
             local identifier = string.match(el.text, pattern)
             if identifier then
                 if FORMAT:match('latex') then
-                    return pandoc.RawInline('latex', string.format('\\cref{%s}', el.text))
+                    return pandoc.RawInline('latex', string.format('%s~\\ref{%s}', theorem_style, el.text))
                 else
                     return pandoc.Link(string.format("%s %s", theorem_style, identifier), el.text)
                 end
