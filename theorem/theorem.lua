@@ -28,7 +28,7 @@ local theorem_styles = {
     },
     Proof = {
         classes = {'proof'},
-        counter = 1,
+        counter = nil,
         environment = 'proof'
     },
     Claim = {
@@ -217,7 +217,10 @@ local function lex_definition_list_item(head, body)
         assert(#body == 1, "Unexpected number of elements '" .. #body .. "'")
         result.body = body[1]
         if result.custom_counter == nil then
-            theorem_styles[result.style.name].counter = theorem_styles[result.style.name].counter + 1
+            local theorem_style = theorem_styles[result.style.name]
+            if theorem_style.counter ~= nil then
+                theorem_style.counter = theorem_style.counter + 1
+            end
         end
         return result
     else
@@ -254,6 +257,9 @@ local function lex_definition_list(el)
     return nil
 end
 
+---Store the previously rendered identifier.
+local previous_identifier = "unknown"
+
 ---Render the identifier for a theorem.
 ---
 ---@param theorem_info table
@@ -264,10 +270,13 @@ local function render_theorem_identifier(theorem_info)
         theorem_label = pandoc.utils.stringify(pandoc.Inlines(theorem_info.theorem_name))
     elseif theorem_info.custom_counter ~= nil then
         theorem_label = theorem_info.custom_counter
-    else
+    elseif theorem_info.style.counter ~= nil then
         theorem_label = string.format("%d", theorem_info.style.counter)
+    else
+        theorem_label = "for-" .. previous_identifier
     end
-    return string.lower(string.gsub(string.format("%s-%s", theorem_info.style.name, theorem_label), "[^%a%d]", "-"))
+    previous_identifier = string.lower(string.gsub(string.format("%s-%s", theorem_info.style.name, theorem_label), "[^%a%d]", "-"))
+    return previous_identifier
 end
 
 ---Render a theorem as a Pandoc element.
@@ -278,11 +287,12 @@ local function render_theorem(theorem_info)
     -- Header
     local strong = pandoc.Inlines({})
     strong:insert(pandoc.Str(theorem_info.style.name))
-    strong:insert(pandoc.Space())
     -- Add counter
     if theorem_info.custom_counter ~= nil then
+        strong:insert(pandoc.Space())
         strong:insert(pandoc.Str(theorem_info.custom_counter))
-    else
+    elseif theorem_info.style.counter ~= nil then
+        strong:insert(pandoc.Space())
         strong:insert(pandoc.Str(string.format("%d", theorem_info.style.counter)))
     end
     local header = pandoc.Inlines({})
