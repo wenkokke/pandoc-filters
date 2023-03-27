@@ -267,7 +267,7 @@ local previous_identifier = "unknown"
 local function render_theorem_identifier(theorem_info)
     local theorem_label = nil
     if theorem_info.theorem_name ~= nil then
-        theorem_label = string.gsub("%W", "-", pandoc.utils.stringify(pandoc.Inlines(theorem_info.theorem_name)))
+        theorem_label = string.gsub(pandoc.utils.stringify(pandoc.Inlines(theorem_info.theorem_name)), "%W", "-")
     elseif theorem_info.custom_counter ~= nil then
         theorem_label = theorem_info.custom_counter
     elseif theorem_info.style.counter ~= nil then
@@ -341,6 +341,8 @@ local function render_theorem_latex(theorem_info)
         header:insert(pandoc.RawInline('latex', string.format('\\begin{%s}', theorem_info.style.environment)))
         header:extend(theorem_info.remainder)
     end
+    -- Label
+    header:insert(pandoc.RawInline('latex', string.format('\\label{%s}', render_theorem_identifier(theorem_info))))
     -- Footer
     footer:insert(pandoc.RawInline('latex', string.format('\\end{%s}', theorem_info.style.environment)))
     -- Custom counter
@@ -385,7 +387,8 @@ Str = function(el)
             local identifier = string.match(el.text, pattern)
             if identifier then
                 if FORMAT:match('latex') then
-                    return pandoc.RawInline('latex', string.format('%s~\\ref{%s}', theorem_style, el.text))
+                    return pandoc.RawInline('latex', string.format('%s~\\ref{%s-%s}', theorem_style,
+                        string.lower(theorem_style), identifier))
                 else
                     return pandoc.Link(string.format("%s %s", theorem_style, identifier), el.text)
                 end
