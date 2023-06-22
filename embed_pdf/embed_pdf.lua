@@ -5,6 +5,7 @@
 ---@license MIT
 ---@copyright Wen Kokke 2023
 local embed_pdf = {}
+local logging = require 'logging'
 
 -- Uses `pandoc.template.apply`, which was added in Pandoc 3.0.1.
 PANDOC_VERSION:must_be_at_least '3.0.1'
@@ -28,7 +29,7 @@ local embed_pdf_templates = {
         </object>
     ]],
     latex = [[
-        \includepdf[${ for(opts) }${ it.key }=${ it.value },${ endfor }]{${ src }}
+        \includepdf[${ for(opts) }${ if(it.includepdf) }${ it.key }=${ it.value },${ endif }${ endfor }]{${ src }}
     ]]
 }
 
@@ -70,10 +71,26 @@ local function get_format_opts(el)
     if el.attr ~= nil and el.attr.attributes ~= nil then
         for key, value in pairs(el.attr.attributes) do
             if key:match('^' .. format .. ':') then
-                opts:insert({
-                    key = key:sub(#format + #':' + 1),
-                    value = value
-                })
+                key = key:sub(#format + #':' + 1)
+                -- Check if key contains further qualifiers
+                local key_col_ix = key:find(':')
+                if key_col_ix ~= nil then
+                    -- If the key contains a further scope qualifier,
+                    -- insert that qualifier as a boolean flag.
+                    local scope = key:sub(1, key_col_ix - 1)
+                    key = key:sub(key_col_ix + 1)
+                    opts:insert({
+                        key = key,
+                        value = value,
+                        [scope] = true
+                    })
+                else
+                    -- Otherwise, simply insert the value.
+                    opts:insert({
+                        key = key,
+                        value = value
+                    })
+                end
             end
         end
     end
