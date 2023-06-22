@@ -28,31 +28,6 @@ local embed_pdf_templates = {
         </object>
     ]],
     latex = [[
-        ${ if(titlepage) }
-        \begin{titlepage}
-        \null\vfill
-        ${ if(titlepagecolor) }
-        \pagecolor{${ titlepagecolor }}
-        \afterpage{\nopagecolor}
-        ${ endif }
-        {
-            ${ if(titlepagetitlestyle) }
-            ${ titlepagetitlestyle }
-            ${ endif }
-            ${ titlepagetitle }
-        }
-        \vspace{2cm}
-        ${ if(titlepagenote) }
-        {
-            ${ if(titlepagenotestyle) }
-            ${ titlepagenotestyle }
-            ${ endif }
-            ${ titlepagenote }
-        }
-        ${ endif }
-        \vspace{2cm}
-        \end{titlepage}
-        ${ endif }
         \includepdf[${ for(includepdf) }${ it.key }=${ it.value },${ endfor }]{${ src }}
     ]]
 }

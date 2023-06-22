@@ -10,9 +10,9 @@ This filter renders, _e.g._, this Markdown...
 ![](sample.pdf){
   latex:includepdf:pages="-"
   latex:includepdf:addtotoc="{1, section, 1, Sample, sample:theorem}"
-  html:title="The sample from the theorem filter"
-  html:width="640"
-  html:height="480"
+  html:attr:title="The sample from the theorem filter"
+  html:attr:width="640"
+  html:attr:height="480"
 }
 ```
 
