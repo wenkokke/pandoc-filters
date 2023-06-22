@@ -5,7 +5,6 @@
 ---@license MIT
 ---@copyright Wen Kokke 2023
 local embed_pdf = {}
-local logging = require 'logging'
 
 -- Uses `pandoc.template.apply`, which was added in Pandoc 3.0.1.
 PANDOC_VERSION:must_be_at_least '3.0.1'
@@ -16,8 +15,8 @@ local embed_pdf_templates = {
         <object
             type="application/pdf"
             data="${ src }"
-            ${ if(opts) }
-            ${ for(opts) }
+            ${ if(attr) }
+            ${ for(attr) }
             ${ it.key }="${ it.value }"
             ${ endfor }
             ${ endif }
@@ -29,7 +28,7 @@ local embed_pdf_templates = {
         </object>
     ]],
     latex = [[
-        \includepdf[${ for(opts) }${ if(it.includepdf) }${ it.key }=${ it.value },${ endif }${ endfor }]{${ src }}
+        \includepdf[${ for(includepdf) }${ it.key }=${ it.value },${ endfor }]{${ src }}
     ]]
 }
 
@@ -75,21 +74,20 @@ local function get_format_opts(el)
                 -- Check if key contains further qualifiers
                 local key_col_ix = key:find(':')
                 if key_col_ix ~= nil then
-                    -- If the key contains a further scope qualifier,
-                    -- insert that qualifier as a boolean flag.
-                    local scope = key:sub(1, key_col_ix - 1)
+                    -- If the key contains a further qualifier,
+                    -- insert a flag with that qualifier.
+                    local parent_key = key:sub(1, key_col_ix - 1)
                     key = key:sub(key_col_ix + 1)
-                    opts:insert({
-                        key = key,
-                        value = value,
-                        [scope] = true
-                    })
-                else
-                    -- Otherwise, simply insert the value.
-                    opts:insert({
+                    if opts[parent_key] == nil then
+                        opts[parent_key] = pandoc.List()
+                    end
+                    opts[parent_key]:insert({
                         key = key,
                         value = value
                     })
+                else
+                    -- Otherwise, simply insert the value.
+                    opts[key] = value
                 end
             end
         end
@@ -103,10 +101,8 @@ local function render_pdf_embed(el, block)
     assert(embed_pdf_templates[format] ~= nil)
     local template_string = embed_pdf_templates[format]:match('^%s*(.*)\n%s*$')
     local template = pandoc.template.compile(template_string)
-    local context = {
-        src = el.src,
-        opts = get_format_opts(el)
-    }
+    local context = get_format_opts(el)
+    context.src = el.src
     local document = pandoc.template.apply(template, context)
     local rendered = pandoc.layout.render(document)
     if block == true then
