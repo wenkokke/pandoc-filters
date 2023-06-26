@@ -5,6 +5,46 @@ defaults:
     shell: sh
 
 jobs:
+  crossref:
+    name: crossref / ${{ matrix.os }} / Pandoc ${{ matrix.pandoc-version }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        pandoc-version:
+          - "2.17"
+          - "2.17.0.1"
+          - "2.17.1"
+          - "2.17.1.1"
+          - "2.18"
+          - "2.19"
+          - "2.19.1"
+          - "2.19.2"
+          - "3.0.1"
+          - "3.1"
+          - "3.1.1"
+          - "3.1.2"
+          - "3.1.3"
+          - "3.1.4"
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Get source
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - name: Setup Pandoc ${{ matrix.pandoc-version }}
+        uses: pandoc/actions/setup@v1.0.0
+        with:
+          version: ${{ matrix.pandoc-version }}
+
+      - name: Test filter
+        run: make test
+        working-directory: crossref
+
   embed_pdf:
     name: embed_pdf / ${{ matrix.os }} / Pandoc ${{ matrix.pandoc-version }}
     strategy:
@@ -12,6 +52,11 @@ jobs:
         os: [ubuntu-latest]
         pandoc-version:
           - "3.0.1"
+          - "3.1"
+          - "3.1.1"
+          - "3.1.2"
+          - "3.1.3"
+          - "3.1.4"
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -48,6 +93,11 @@ jobs:
           - "2.19.1"
           - "2.19.2"
           - "3.0.1"
+          - "3.1"
+          - "3.1.1"
+          - "3.1.2"
+          - "3.1.3"
+          - "3.1.4"
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -83,6 +133,11 @@ jobs:
           - "2.19.1"
           - "2.19.2"
           - "3.0.1"
+          - "3.1"
+          - "3.1.1"
+          - "3.1.2"
+          - "3.1.3"
+          - "3.1.4"
 
     runs-on: ${{ matrix.os }}
     steps:
