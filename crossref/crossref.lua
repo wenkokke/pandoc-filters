@@ -4,6 +4,7 @@
 ---@author Wen Kokke
 ---@license MIT
 ---@copyright Wen Kokke 2023
+local logging = require 'logging'
 local crossref = {
     -- Should the reference names be capitalised?
     capitalise = false,
@@ -138,13 +139,11 @@ end
 
 -- Resolve the format for a cross-reference type.
 local function resolve_crossref_format(crossref_type)
-    assert(type(crossref_type) == 'table')
     assert(type(crossref) == 'table')
     assert(type(crossref.format) == 'table')
-    -- Initialise the format table for this cross-reference type.
-    if crossref.format[crossref_type.type] == nil then
-        crossref.format[crossref_type.type] = {}
-    end
+    assert(type(crossref_type) == 'table')
+    assert(type(crossref_type.type) == 'string')
+    assert(type(crossref_type.level) == 'number' or crossref_type.level == nil)
     -- If a level is specified & has a custom format, return it:
     if crossref_type.level ~= nil then
         local shift_level = 0
@@ -162,16 +161,12 @@ local function resolve_crossref_format(crossref_type)
 end
 
 -- Resolve the name for a cross-reference type.
-local function resolve_crossref_name(crossref_type, is_plural)
-    assert(type(crossref_type) == 'table')
-    assert(type(crossref_type.type) == 'string')
-    assert(crossref_type.level == nil or type(crossref_type.level) == 'number')
-    -- Resolve the format for the cross-reference type.
-    local crossref_format = resolve_crossref_format(crossref_type)
+local function resolve_crossref_name(crossref_format, is_plural)
     assert(type(crossref_format) == 'table')
+    assert(crossref_format.name ~= nil)
     -- Resolve the name for the cross-reference type.
     local crossref_name = nil
-    if type(crossref_format.name) == 'string' or type(crossref_format.name) == 'inlines' then
+    if type(crossref_format.name) == 'string' or type(crossref_format.name) == 'Inlines' then
         crossref_name = crossref_format.name
     elseif type(crossref_format.name) == 'table' or type(crossref_format.name) == 'List' then
         if is_plural then
@@ -182,9 +177,7 @@ local function resolve_crossref_name(crossref_type, is_plural)
             crossref_name = crossref_format.name[1]
         end
     else
-        log('Unexpected value of type ' .. type(crossref_format.name) .. ' for ' .. crossref_type.type .. ' name',
-            'WARNING')
-        crossref_name = crossref_type.type
+        error('Unexpected value of type ' .. type(crossref_format.name))
     end
     -- Normalise Inlines to string:
     crossref_name = pandoc.utils.stringify(crossref_name)
@@ -275,23 +268,22 @@ end
 
 -- Resolve the target for an indentifier.
 local function resolve_crossref_target(identifier)
+    local target = crossref.targets[identifier.identifier]
     -- Handle unchecked indexes:
     if crossref.enable_unchecked_indexes and identifier.index ~= nil then
-        -- Resolve the parent target
-        local parent_target = crossref.targets[identifier.identifier]
-        if parent_target ~= nil and parent_target.type ~= nil then
+        if target ~= nil and target.type ~= nil then
             -- Resolve the child type & build a target:
-            return {
-                type = resolve_child_type(parent_target.type),
+            target.child = {
+                type = resolve_child_type(target.type),
                 number = identifier.index
             }
         end
     end
-    return crossref.targets[identifier.identifier]
+    return target
 end
 
 -- Convert an identifier to an anchor.
-local function toanchor(identifier)
+local function format_crossref_anchor(identifier)
     local anchor = '#'
     if type(identifier) == 'table' then
         anchor = anchor .. identifier.identifier
@@ -306,6 +298,21 @@ local function toanchor(identifier)
     return anchor
 end
 
+local function format_crossref_label(target)
+    assert(type(target) == 'table')
+    assert(type(target.type) == 'table')
+    local target_format = resolve_crossref_format(target.type)
+    local target_name = resolve_crossref_name(target_format, false)
+    local label = string.format('%s %d', target_name, target.number)
+    if target.child ~= nil then
+        local index_format = resolve_crossref_format(target.child.type)
+        local index_name = resolve_crossref_name(index_format, false)
+        label = label .. string.format(' (%s %d)', index_name, target.child.number)
+
+    end
+    return label
+end
+
 -- Filter that resolve cross-references.
 local resolve_crossref = {
     Cite = function(el)
@@ -315,13 +322,12 @@ local resolve_crossref = {
             -- Find the target for the identifier:
             local target = resolve_crossref_target(identifier)
             if target ~= nil then
-                -- Compose the name for the cross-reference.
-                local name = resolve_crossref_name(target.type, false)
-                local label = name .. ' ' .. target.number
-                -- Compose the anchor for the cross-reference target
-                return pandoc.Link(label, toanchor(identifier))
+                local label = format_crossref_label(target)
+                local anchor = format_crossref_anchor(identifier)
+                return pandoc.Link(label, anchor)
             else
-                log('target for possible cross-reference ' .. toanchor(identifier) .. ' not found', 'WARNING')
+                log('target for possible cross-reference ' .. format_crossref_anchor(identifier) .. ' not found',
+                    'WARNING')
             end
         end
     end,
