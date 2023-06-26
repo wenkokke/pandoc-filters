@@ -188,6 +188,96 @@ local function resolve_crossref_name(crossref_format, is_plural)
     return crossref_name
 end
 
+-- Resolve the type for an unchecked cross-reference index.
+local function resolve_crossref_index_type(crossref_type)
+    assert(type(crossref_type) == 'table')
+    assert(type(crossref_type.type) == 'string')
+    assert(crossref_type.level == nil or type(crossref_type.level) == 'number')
+    -- Resolve parent format
+    local parent_format = resolve_crossref_format(crossref_type)
+    if parent_format.child ~= nil then
+        local index_type = nil
+        -- Normalise parent_format.child
+        if type(parent_format.child) == 'string' or type(parent_format.child) == 'Inlines' then
+            index_type = {}
+            index_type.type = pandoc.utils.stringify(parent_format.child)
+        elseif type(parent_format.child) == 'table' and parent_format.child.type ~= nil then
+            index_type = parent_format.child
+            index_type.type = pandoc.utils.stringify(index_type.type)
+            if index_type.level ~= nil then
+                index_type.level = tonumber(index_type.level)
+            end
+        else
+            error('Unexpected type for child:' .. type(parent_format.child))
+        end
+        return index_type
+    end
+end
+
+-- Resolve the target for an indentifier.
+local function resolve_crossref_target(identifier)
+    local target = crossref.targets[identifier.identifier]
+    -- Handle unchecked indexes:
+    if crossref.enable_unchecked_indexes and identifier.index ~= nil then
+        if target ~= nil and target.type ~= nil then
+            -- Resolve the child type & build a target:
+            target.index = {
+                type = resolve_crossref_index_type(target.type),
+                number = identifier.index
+            }
+        end
+    end
+    return target
+end
+
+-- Parse an identifier to a telescope.
+local function parse_identifier(identifier)
+    if crossref.enable_unchecked_indexes then
+        local identifier_dot_ix = identifier:find('%.')
+        if identifier_dot_ix ~= nil then
+            return {
+                identifier = identifier:sub(1, identifier_dot_ix - 1),
+                index = identifier:sub(identifier_dot_ix + 1)
+            }
+        end
+    end
+    return {
+        identifier = identifier
+    }
+end
+
+-- Format a cross-reference anchor.
+local function format_crossref_anchor(identifier)
+    local anchor = '#'
+    if type(identifier) == 'table' then
+        anchor = anchor .. identifier.identifier
+        if identifier.index ~= nil then
+            anchor = anchor .. '.' .. identifier.index
+        end
+    elseif type(identifier) == 'string' then
+        anchor = anchor .. identifier
+    else
+        error('Unexpected type ' .. type(identifier))
+    end
+    return anchor
+end
+
+-- Format a cross-reference label.
+local function format_crossref_label(target)
+    assert(type(target) == 'table')
+    assert(type(target.type) == 'table')
+    local target_format = resolve_crossref_format(target.type)
+    local target_name = resolve_crossref_name(target_format, false)
+    local label = string.format('%s %d', target_name, target.number)
+    if target.index ~= nil then
+        local index_format = resolve_crossref_format(target.index.type)
+        local index_name = resolve_crossref_name(index_format, false)
+        label = label .. string.format(' (%s %d)', index_name, target.index.number)
+
+    end
+    return label
+end
+
 -- Filter that gets the cross-reference configuration from the document.
 local get_crossref_configuration = {
     Meta = function(el)
@@ -224,94 +314,6 @@ local get_crossref_targets = {
     -- Ensure the document is traversed in top-down depth-first order
     traverse = 'topdown'
 }
-
--- Parse an identifier to a telescope.
-local function parse_identifier(identifier)
-    if crossref.enable_unchecked_indexes then
-        local identifier_dot_ix = identifier:find('%.')
-        if identifier_dot_ix ~= nil then
-            return {
-                identifier = identifier:sub(1, identifier_dot_ix - 1),
-                index = identifier:sub(identifier_dot_ix + 1)
-            }
-        end
-    end
-    return {
-        identifier = identifier
-    }
-end
-
-local function resolve_child_type(parent_type)
-    assert(type(parent_type) == 'table')
-    assert(type(parent_type.type) == 'string')
-    assert(parent_type.level == nil or type(parent_type.level) == 'number')
-    -- Resolve parent format
-    local parent_format = resolve_crossref_format(parent_type)
-    if parent_format.child ~= nil then
-        local child_type = nil
-        -- Normalise parent_format.child
-        if type(parent_format.child) == 'string' or type(parent_format.child) == 'Inlines' then
-            child_type = {}
-            child_type.type = pandoc.utils.stringify(parent_format.child)
-        elseif type(parent_format.child) == 'table' and parent_format.child.type ~= nil then
-            child_type = parent_format.child
-            child_type.type = pandoc.utils.stringify(child_type.type)
-            if child_type.level ~= nil then
-                child_type.level = tonumber(child_type.level)
-            end
-        else
-            error('Unexpected type for child:' .. type(parent_format.child))
-        end
-        return child_type
-    end
-end
-
--- Resolve the target for an indentifier.
-local function resolve_crossref_target(identifier)
-    local target = crossref.targets[identifier.identifier]
-    -- Handle unchecked indexes:
-    if crossref.enable_unchecked_indexes and identifier.index ~= nil then
-        if target ~= nil and target.type ~= nil then
-            -- Resolve the child type & build a target:
-            target.child = {
-                type = resolve_child_type(target.type),
-                number = identifier.index
-            }
-        end
-    end
-    return target
-end
-
--- Convert an identifier to an anchor.
-local function format_crossref_anchor(identifier)
-    local anchor = '#'
-    if type(identifier) == 'table' then
-        anchor = anchor .. identifier.identifier
-        if identifier.index ~= nil then
-            anchor = anchor .. '.' .. identifier.index
-        end
-    elseif type(identifier) == 'string' then
-        anchor = anchor .. identifier
-    else
-        error('Unexpected type ' .. type(identifier))
-    end
-    return anchor
-end
-
-local function format_crossref_label(target)
-    assert(type(target) == 'table')
-    assert(type(target.type) == 'table')
-    local target_format = resolve_crossref_format(target.type)
-    local target_name = resolve_crossref_name(target_format, false)
-    local label = string.format('%s %d', target_name, target.number)
-    if target.child ~= nil then
-        local index_format = resolve_crossref_format(target.child.type)
-        local index_name = resolve_crossref_name(index_format, false)
-        label = label .. string.format(' (%s %d)', index_name, target.child.number)
-
-    end
-    return label
-end
 
 -- Filter that resolve cross-references.
 local resolve_crossref = {
