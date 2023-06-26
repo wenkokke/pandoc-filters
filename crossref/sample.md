@@ -3,6 +3,10 @@ bibliography: sample.bib
 crossref:
   verbosity: 'ERROR'
   capitalise: true
+  enable_unchecked_indexes: true
+  format:
+    CodeBlock:
+      Child: 'Line'
 ---
 
 # Cross-references? Who needs 'em. {#me}
@@ -12,6 +16,8 @@ Is this code? Not really.
 ```
 
 But would you look at @snippet?
+
+Would you look at @snippet.1?
 
 I love @me.
 

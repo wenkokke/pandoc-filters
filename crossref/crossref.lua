@@ -7,7 +7,15 @@
 local crossref = {
     -- Should the reference names be capitalised?
     capitalise = false,
-    -- The shift in level names.
+
+    -- If true, parse `@identifier.index` as a reference
+    -- to `@identifier`, but typeset the reference using
+    -- the Child field in the format for `@identifier`,
+    -- and pass the index through unchecked.
+    enable_unchecked_indexes = false,
+
+    -- If set, shift the level of a reference before
+    -- resolving its name.
     shift_level = {
         -- The default shift in Header level
         -- is based on the top-level division.
@@ -21,7 +29,9 @@ local crossref = {
 
     -- List of default formats
     format = {
-        CodeBlock = {{'listing', 'listings'}},
+        CodeBlock = {
+            name = {'listing', 'listings'}
+        },
         Figure = {
             name = {'figure', 'figures'}
         },
@@ -54,34 +64,30 @@ local crossref = {
 -- Uses topdown traversal, which was added in Pandoc 2.17.
 PANDOC_VERSION:must_be_at_least '2.17'
 
-local function normalise_verbosity(verbosity)
-    -- Normalise verbosity to string.
-    if type(verbosity) ~= "string" then
+local function tolevel(verbosity)
+    -- Normalise verbosity to an uppercase string.
+    if type(verbosity) ~= 'string' then
         verbosity = pandoc.utils.stringify(verbosity)
     end
-    -- Normalise verbosity to uppercase
     verbosity = pandoc.text.upper(verbosity)
-    return verbosity
-end
-
-local function verbosity_to_level(verbosity)
-    local v2l = {
+    -- Return the corresponding level.
+    local verbositytolevel = {
         ['INFO'] = 3,
         ['WARNING'] = 2,
         ['ERROR'] = 1
     }
-    local verbosity = normalise_verbosity(verbosity)
-    if v2l[verbosity] ~= nil then
-        return v2l[verbosity]
+    if verbositytolevel[verbosity] ~= nil then
+        return verbositytolevel[verbosity]
     else
-        io.stderr:write('[ERROR] crossref: unknown verbosity ' .. normal_verbosity .. '\n')
+        io.stderr:write('[ERROR] crossref: unknown verbosity ' .. verbosity .. '\n')
     end
 end
 
 local function log(msg, verbosity)
-    verbosity = normalise_verbosity(verbosity or 'INFO')
-    local msg_level = verbosity_to_level(verbosity) or 3
-    local log_level = verbosity_to_level(crossref.verbosity or PANDOC_STATE.verbosity) or 2
+    assert(type(msg) == 'string')
+    assert(verbosity == 'INFO' or verbosity == 'WARNING' or verbosity == 'ERROR')
+    local msg_level = tolevel(verbosity)
+    local log_level = tolevel(crossref.verbosity or PANDOC_STATE.verbosity) or 2
     -- Only print the message if the message level is below the log level threshold
     if msg_level <= log_level then
         io.stderr:write('[' .. verbosity .. '] crossref: ' .. msg .. '\n')
@@ -136,7 +142,7 @@ local function resolve_crossref_format(crossref_type)
         local shift_level = 0
         if crossref.shift_level ~= nil and crossref.shift_level[crossref_type.type] then
             shift_level = crossref.shift_level[crossref_type.type]
-            assert(type(shift_level) == "number")
+            assert(type(shift_level) == 'number')
         end
         local shifted_level = crossref_type.level + shift_level
         local format_for_shifted_level = crossref.format[crossref_type.type][shifted_level]
@@ -147,6 +153,7 @@ local function resolve_crossref_format(crossref_type)
     return crossref.format[crossref_type.type]
 end
 
+-- Capitalise the input string.
 local function capitalise(s)
     return pandoc.text.upper(pandoc.text.sub(s, 1, 1)) .. pandoc.text.sub(s, 2)
 end
@@ -216,34 +223,64 @@ local get_crossref_targets = {
     traverse = 'topdown'
 }
 
+-- Parse an identifier to a telescope.
+local function parse_identifier(identifier)
+    if crossref.enable_unchecked_indexes then
+        local identifier_dot_ix = identifier:find('%.')
+        if identifier_dot_ix ~= nil then
+            return {
+                identifier = identifier:sub(1, identifier_dot_ix - 1),
+                index = identifier:sub(identifier_dot_ix + 1)
+            }
+        end
+    end
+    return {
+        identifier = identifier
+    }
+end
+
+-- Resolve the target for an indentifier.
+local function resolve_crossref_target(identifier)
+    -- Handle unchecked indexes:
+    if crossref.enable_unchecked_indexes and identifier.index ~= nil then
+        local parent_target = crossref.targets[identifier.identifier]
+        if parent_target ~= nil and parent_target.type ~= nil and parent_target.type.Child ~= nil then
+            logging.temp('parent_target', parent_target)
+        end
+    end
+    return crossref.targets[identifier.identifier]
+end
+
+local function toanchor(identifier)
+    local anchor = '#'
+    if type(identifier) == "table" then
+        anchor = anchor .. identifier.identifier
+        if identifier.index ~= nil then
+            anchor = anchor .. '.' .. identifier.index
+        end
+    end
+    if type(identifier) == "string" then
+        anchor = anchor .. identifier
+    end
+    return anchor
+end
+
 -- Filter that resolve cross-references.
 local resolve_crossref = {
     Cite = function(el)
         if el.citations ~= nil and #el.citations == 1 then
-            local identifier = el.citations[1].id
-            -- If enabled, parse an optional suffix:
-            local opt_suffix = nil
-            if crossref.enable_suffix then
-                local identifier_dot_ix = identifier:find('.')
-                if identifier_dot_ix ~= nil then
-                    opt_suffix = identifier:sub(identifier_dot_ix + 1)
-                    identifier = identifier:sub(1, identifier_dot_ix - 1)
-                end
-            end
+            -- Parse the identifier
+            local identifier = parse_identifier(el.citations[1].id)
             -- Find the target for the identifier:
-            local target = crossref.targets[identifier]
+            local target = resolve_crossref_target(identifier)
             if target ~= nil then
                 -- Compose the name for the cross-reference.
                 local name = resolve_crossref_name(target.type, false)
                 local label = name .. ' ' .. target.number
-                -- Compose the anchor for the cross-reference target.
-                local anchor = '#' .. identifier
-                if crossref.enable_suffix and opt_suffix ~= nil then
-                    anchor = anchor .. '.' .. opt_suffix
-                end
-                return pandoc.Link(label, anchor)
+                -- Compose the anchor for the cross-reference target
+                return pandoc.Link(label, toanchor(identifier))
             else
-                log('target for possible cross-reference @' .. identifier .. ' not found', 'WARNING')
+                log('target for possible cross-reference ' .. toanchor(identifier) .. ' not found', 'WARNING')
             end
         end
     end,

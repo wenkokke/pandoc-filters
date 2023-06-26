@@ -4,7 +4,9 @@
 Is this code? Not really.
 ```
 
-But would you look at [CodeBlock 1](#snippet)?
+But would you look at [Listing 1](#snippet)?
+
+Would you look at [Listing 1](#snippet.1)?
 
 I love [Section 1](#me).
 
