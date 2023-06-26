@@ -27,6 +27,9 @@ local crossref = {
         })[PANDOC_WRITER_OPTIONS.top_level_division]
     },
 
+    -- Default template
+    template = '${ name } ${ number }${ if(index) } (${ index.name } ${ index.number})${ endif }',
+
     -- List of default formats
     format = {
         CodeBlock = {
@@ -265,16 +268,27 @@ end
 local function format_crossref_label(target)
     assert(type(target) == 'table')
     assert(type(target.type) == 'table')
-    local target_format = resolve_crossref_format(target.type)
-    local target_name = resolve_crossref_name(target_format, false)
-    local label = string.format('%s %d', target_name, target.number)
+    -- Resolve the target format
+    local format = resolve_crossref_format(target.type)
+    -- Make the template context
+    local context = {
+        name = resolve_crossref_name(format),
+        number = target.number
+    }
+    -- If the target has an index:
     if target.index ~= nil then
+        -- Resolve the index format
         local index_format = resolve_crossref_format(target.index.type)
-        local index_name = resolve_crossref_name(index_format, false)
-        label = label .. string.format(' (%s %d)', index_name, target.index.number)
-
+        -- Extend the template context
+        context.index = {
+            name = resolve_crossref_name(index_format, false),
+            number = target.index.number
+        }
     end
-    return label
+    -- Resolve the target template
+    local template = format.template or crossref.template
+    -- Render the template
+    return pandoc.layout.render(pandoc.template.apply(pandoc.template.compile(template), context))
 end
 
 -- Filter that gets the cross-reference configuration from the document.
