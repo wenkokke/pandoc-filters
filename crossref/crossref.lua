@@ -65,7 +65,8 @@ local crossref = {
 }
 
 -- Uses topdown traversal, which was added in Pandoc 2.17.
-PANDOC_VERSION:must_be_at_least '2.17'
+-- Uses pandoc.template.apply, which was added in Pandoc 3.0.1.
+PANDOC_VERSION:must_be_at_least '3.0.1'
 
 -- Import 'pandoc.utils.type' as 'type'
 local type = pandoc.utils.type

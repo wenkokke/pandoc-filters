@@ -1,4 +1,4 @@
-![Requires Pandoc ^2.17](https://img.shields.io/badge/pandoc-%5E2.17-orange)
+![Requires Pandoc ^3.0.1](https://img.shields.io/badge/pandoc-%5E3.0.1-orange)
 
 # crossref
 
