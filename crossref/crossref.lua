@@ -110,9 +110,8 @@ end
 local function resolve_crossref_type(identifier, tag, level)
     local identifier_col_ix = identifier:find(':')
     if identifier_col_ix ~= nil then
-        local crossref_type = identifier:sub(1, identifier_col_ix - 1)
         return {
-            type = crossref_type,
+            type = identifier:sub(1, identifier_col_ix - 1),
             level = level
         }
     else
@@ -222,11 +221,27 @@ local resolve_crossref = {
     Cite = function(el)
         if el.citations ~= nil and #el.citations == 1 then
             local identifier = el.citations[1].id
+            -- If enabled, parse an optional suffix:
+            local opt_suffix = nil
+            if crossref.enable_suffix then
+                local identifier_dot_ix = identifier:find('.')
+                if identifier_dot_ix ~= nil then
+                    opt_suffix = identifier:sub(identifier_dot_ix + 1)
+                    identifier = identifier:sub(1, identifier_dot_ix - 1)
+                end
+            end
+            -- Find the target for the identifier:
             local target = crossref.targets[identifier]
             if target ~= nil then
+                -- Compose the name for the cross-reference.
                 local name = resolve_crossref_name(target.type, false)
-                local number = target.number
-                return pandoc.Link(name .. ' ' .. number, '#' .. identifier)
+                local label = name .. ' ' .. target.number
+                -- Compose the anchor for the cross-reference target.
+                local anchor = '#' .. identifier
+                if crossref.enable_suffix and opt_suffix ~= nil then
+                    anchor = anchor .. '.' .. opt_suffix
+                end
+                return pandoc.Link(label, anchor)
             else
                 log('target for possible cross-reference @' .. identifier .. ' not found', 'WARNING')
             end
