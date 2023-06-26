@@ -10,7 +10,7 @@ local crossref = {
 
     -- If true, parse `@identifier.index` as a reference
     -- to `@identifier`, but typeset the reference using
-    -- the child field in the format for `@identifier`,
+    -- the 'index' field in the format for `@identifier`,
     -- and pass the index through unchecked.
     enable_unchecked_indexes = false,
 
@@ -197,20 +197,20 @@ local function resolve_crossref_index_type(crossref_type)
     assert(crossref_type.level == nil or type(crossref_type.level) == 'number')
     -- Resolve parent format
     local parent_format = resolve_crossref_format(crossref_type)
-    if parent_format.child ~= nil then
+    if parent_format.index ~= nil then
         local index_type = nil
-        -- Normalise parent_format.child
-        if type(parent_format.child) == 'string' or type(parent_format.child) == 'Inlines' then
+        -- Normalise parent_format.index
+        if type(parent_format.index) == 'string' or type(parent_format.index) == 'Inlines' then
             index_type = {}
-            index_type.type = pandoc.utils.stringify(parent_format.child)
-        elseif type(parent_format.child) == 'table' and parent_format.child.type ~= nil then
-            index_type = parent_format.child
+            index_type.type = pandoc.utils.stringify(parent_format.index)
+        elseif type(parent_format.index) == 'table' and parent_format.index.type ~= nil then
+            index_type = parent_format.index
             index_type.type = pandoc.utils.stringify(index_type.type)
             if index_type.level ~= nil then
                 index_type.level = tonumber(index_type.level)
             end
         else
-            error('Unexpected type for child:' .. type(parent_format.child))
+            error('Unexpected type for index:' .. type(parent_format.index))
         end
         return index_type
     end
@@ -222,7 +222,7 @@ local function resolve_crossref_target(identifier)
     -- Handle unchecked indexes:
     if crossref.enable_unchecked_indexes and identifier.index ~= nil then
         if target ~= nil and target.type ~= nil then
-            -- Resolve the child type & build a target:
+            -- Resolve the index type & build a target:
             target.index = {
                 type = resolve_crossref_index_type(target.type),
                 number = identifier.index

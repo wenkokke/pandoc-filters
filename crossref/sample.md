@@ -5,7 +5,7 @@ crossref:
   enable_unchecked_indexes: true
   format:
     CodeBlock:
-      child: 'Line'
+      index: 'Line'
     Line:
       name: 'line'
 ---
