@@ -6,7 +6,11 @@ crossref:
   enable_unchecked_indexes: true
   format:
     CodeBlock:
-      Child: 'Line'
+      Child:
+        type: 'Line'
+    Line:
+      name:
+        - 'line'
 ---
 
 # Cross-references? Who needs 'em. {#me}

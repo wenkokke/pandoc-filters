@@ -64,12 +64,13 @@ local crossref = {
 -- Uses topdown traversal, which was added in Pandoc 2.17.
 PANDOC_VERSION:must_be_at_least '2.17'
 
+-- Import 'pandoc.utils.type' as 'type'
+local type = pandoc.utils.type
+
+-- Convert a verbosity to a level.
 local function tolevel(verbosity)
     -- Normalise verbosity to an uppercase string.
-    if type(verbosity) ~= 'string' then
-        verbosity = pandoc.utils.stringify(verbosity)
-    end
-    verbosity = pandoc.text.upper(verbosity)
+    verbosity = pandoc.text.upper(pandoc.utils.stringify(verbosity))
     -- Return the corresponding level.
     local verbositytolevel = {
         ['INFO'] = 3,
@@ -83,6 +84,7 @@ local function tolevel(verbosity)
     end
 end
 
+-- Write a message to stderr.
 local function log(msg, verbosity)
     assert(type(msg) == 'string')
     assert(verbosity == 'INFO' or verbosity == 'WARNING' or verbosity == 'ERROR')
@@ -94,7 +96,13 @@ local function log(msg, verbosity)
     end
 end
 
--- Extend `t1` with the values of `t2`.
+-- Capitalise the input string.
+local function capitalise(s)
+    assert(type(s) == 'string')
+    return pandoc.text.upper(pandoc.text.sub(s, 1, 1)) .. pandoc.text.sub(s, 2)
+end
+
+-- Extend table `t1` with the values of table `t2`.
 local function extend(t1, t2)
     assert(type(t1) == 'table')
     assert(type(t2) == 'table')
@@ -117,7 +125,7 @@ local function resolve_crossref_type(identifier, tag, level)
     local identifier_col_ix = identifier:find(':')
     if identifier_col_ix ~= nil then
         return {
-            type = identifier:sub(1, identifier_col_ix - 1),
+            type = pandoc.text.sub(identifier, 1, identifier_col_ix - 1),
             level = level
         }
     else
@@ -153,32 +161,33 @@ local function resolve_crossref_format(crossref_type)
     return crossref.format[crossref_type.type]
 end
 
--- Capitalise the input string.
-local function capitalise(s)
-    return pandoc.text.upper(pandoc.text.sub(s, 1, 1)) .. pandoc.text.sub(s, 2)
-end
-
 -- Resolve the name for a cross-reference type.
 local function resolve_crossref_name(crossref_type, is_plural)
+    assert(type(crossref_type) == 'table')
+    assert(type(crossref_type.type) == 'string')
+    assert(crossref_type.level == nil or type(crossref_type.level) == 'number')
     -- Resolve the format for the cross-reference type.
     local crossref_format = resolve_crossref_format(crossref_type)
     assert(type(crossref_format) == 'table')
     -- Resolve the name for the cross-reference type.
     local crossref_name = nil
-    if crossref_format.name ~= nil then
-        if type(crossref_format.name) == 'string' then
-            crossref_name = crossref_format.name
-        end
-        if type(crossref_format.name) == 'table' then
-            if is_plural then
-                crossref_name = crossref_format.name[2] or crossref_format.name[1]
-            else
-                crossref_name = crossref_format.name[1]
-            end
+    if type(crossref_format.name) == 'string' or type(crossref_format.name) == 'inlines' then
+        crossref_name = crossref_format.name
+    elseif type(crossref_format.name) == 'table' or type(crossref_format.name) == 'List' then
+        if is_plural then
+            assert(crossref_format.name[2] ~= nil)
+            crossref_name = crossref_format.name[2]
+        else
+            assert(crossref_format.name[1] ~= nil)
+            crossref_name = crossref_format.name[1]
         end
     else
+        log('Unexpected value of type ' .. type(crossref_format.name) .. ' for ' .. crossref_type.type .. ' name',
+            'WARNING')
         crossref_name = crossref_type.type
     end
+    -- Normalise Inlines to string:
+    crossref_name = pandoc.utils.stringify(crossref_name)
     -- Capitalise the name, if required.
     if crossref.capitalise then
         crossref_name = capitalise(crossref_name)
@@ -239,28 +248,60 @@ local function parse_identifier(identifier)
     }
 end
 
+local function resolve_child_type(parent_type)
+    assert(type(parent_type) == 'table')
+    assert(type(parent_type.type) == 'string')
+    assert(parent_type.level == nil or type(parent_type.level) == 'number')
+    -- Resolve parent format
+    local parent_format = resolve_crossref_format(parent_type)
+    if parent_format.Child ~= nil then
+        local child_type = nil
+        -- Normalise parent_format.Child
+        if type(parent_format.Child) == 'string' or type(parent_format.Child) == 'Inlines' then
+            child_type = {}
+            child_type.type = pandoc.utils.stringify(parent_format.Child)
+        elseif type(parent_format.Child) == 'table' and parent_format.Child.type ~= nil then
+            child_type = parent_format.Child
+            child_type.type = pandoc.utils.stringify(child_type.type)
+            if child_type.level ~= nil then
+                child_type.level = tonumber(child_type.level)
+            end
+        else
+            error('Unexpected type for Child:' .. type(parent_format.Child))
+        end
+        return child_type
+    end
+end
+
 -- Resolve the target for an indentifier.
 local function resolve_crossref_target(identifier)
     -- Handle unchecked indexes:
     if crossref.enable_unchecked_indexes and identifier.index ~= nil then
+        -- Resolve the parent target
         local parent_target = crossref.targets[identifier.identifier]
-        if parent_target ~= nil and parent_target.type ~= nil and parent_target.type.Child ~= nil then
-            logging.temp('parent_target', parent_target)
+        if parent_target ~= nil and parent_target.type ~= nil then
+            -- Resolve the child type & build a target:
+            return {
+                type = resolve_child_type(parent_target.type),
+                number = identifier.index
+            }
         end
     end
     return crossref.targets[identifier.identifier]
 end
 
+-- Convert an identifier to an anchor.
 local function toanchor(identifier)
     local anchor = '#'
-    if type(identifier) == "table" then
+    if type(identifier) == 'table' then
         anchor = anchor .. identifier.identifier
         if identifier.index ~= nil then
             anchor = anchor .. '.' .. identifier.index
         end
-    end
-    if type(identifier) == "string" then
+    elseif type(identifier) == 'string' then
         anchor = anchor .. identifier
+    else
+        error('Unexpected type ' .. type(identifier))
     end
     return anchor
 end
