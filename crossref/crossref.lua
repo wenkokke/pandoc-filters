@@ -10,7 +10,7 @@ local crossref = {
 
     -- If true, parse `@identifier.index` as a reference
     -- to `@identifier`, but typeset the reference using
-    -- the Child field in the format for `@identifier`,
+    -- the child field in the format for `@identifier`,
     -- and pass the index through unchecked.
     enable_unchecked_indexes = false,
 
@@ -254,20 +254,20 @@ local function resolve_child_type(parent_type)
     assert(parent_type.level == nil or type(parent_type.level) == 'number')
     -- Resolve parent format
     local parent_format = resolve_crossref_format(parent_type)
-    if parent_format.Child ~= nil then
+    if parent_format.child ~= nil then
         local child_type = nil
-        -- Normalise parent_format.Child
-        if type(parent_format.Child) == 'string' or type(parent_format.Child) == 'Inlines' then
+        -- Normalise parent_format.child
+        if type(parent_format.child) == 'string' or type(parent_format.child) == 'Inlines' then
             child_type = {}
-            child_type.type = pandoc.utils.stringify(parent_format.Child)
-        elseif type(parent_format.Child) == 'table' and parent_format.Child.type ~= nil then
-            child_type = parent_format.Child
+            child_type.type = pandoc.utils.stringify(parent_format.child)
+        elseif type(parent_format.child) == 'table' and parent_format.child.type ~= nil then
+            child_type = parent_format.child
             child_type.type = pandoc.utils.stringify(child_type.type)
             if child_type.level ~= nil then
                 child_type.level = tonumber(child_type.level)
             end
         else
-            error('Unexpected type for Child:' .. type(parent_format.Child))
+            error('Unexpected type for child:' .. type(parent_format.child))
         end
         return child_type
     end
