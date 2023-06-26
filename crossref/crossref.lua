@@ -4,7 +4,6 @@
 ---@author Wen Kokke
 ---@license MIT
 ---@copyright Wen Kokke 2023
-local logging = require 'logging'
 local crossref = {
     -- Should the reference names be capitalised?
     capitalise = false,
