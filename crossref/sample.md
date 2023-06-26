@@ -2,7 +2,6 @@
 bibliography: sample.bib
 crossref:
   verbosity: 'ERROR'
-  capitalise: true
   enable_unchecked_indexes: true
   format:
     CodeBlock:

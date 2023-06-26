@@ -6,7 +6,7 @@
 ---@copyright Wen Kokke 2023
 local crossref = {
     -- Should the reference names be capitalised?
-    capitalise = false,
+    capitalise = true,
 
     -- If true, parse `@identifier.index` as a reference
     -- to `@identifier`, but typeset the reference using
@@ -181,7 +181,7 @@ local function resolve_crossref_name(crossref_format, is_plural)
     -- Normalise Inlines to string:
     crossref_name = pandoc.utils.stringify(crossref_name)
     -- Capitalise the name, if required.
-    if crossref.capitalise then
+    if (crossref.capitalise and crossref_format.capitalise ~= false) or crossref_format.capitalise then
         crossref_name = capitalise(crossref_name)
     end
     return crossref_name
