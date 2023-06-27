@@ -4,6 +4,7 @@
 ---@author Wen Kokke
 ---@license MIT
 ---@copyright Wen Kokke 2023
+local logging = require 'filters/wenkokke/crossref/logging'
 local crossref = {
     -- Should the reference names be capitalised?
     capitalise = true,
@@ -60,7 +61,11 @@ local crossref = {
         },
         --- Default format
         ['*'] = {
-            template = '${ name } ${ number }${ if(index) } (${ index.name } ${ index.number})${ endif }'
+            template = {
+                normal = '(${ if(prefix) }${ prefix } ${ endif }${ name } ${ number }${ if(index) }, ${ index.name } ${ index.number}${ endif }${ if(suffix) } ${ suffix }${ endif })',
+                number = '(${ if(prefix) }${ prefix } ${ endif }${ number }${ if(index) }, ${ index.number}${ endif }${ if(suffix) } ${ suffix }${ endif })',
+                intext = '${ if(prefix) }${ prefix } ${ endif }${ name } ${ number }${ if(index) } (${ index.name } ${ index.number})${ endif }${ if(suffix) } ${ suffix }${ endif }'
+            }
         }
     }
 }
@@ -304,11 +309,40 @@ local function format_crossref_anchor(identifier)
     return anchor
 end
 
+--- Convert Pandoc's citation modes to cross-reference modes.
+---
+---@param citation_mode string
+---@return string
+local function resolve_crossref_mode(citation_mode)
+    assert(pandoc.List({pandoc.NormalCitation, pandoc.SuppressAuthor, pandoc.AuthorInText}):includes(citation_mode))
+    return ({
+        [pandoc.NormalCitation] = 'normal',
+        [pandoc.SuppressAuthor] = 'number',
+        [pandoc.AuthorInText] = 'intext'
+    })[citation_mode]
+end
+
+--- Resolve the template for rendering a cross-reference.
+---@param crossref_format table
+---@param crossref_mode string
+---@return string
+local function resolve_crossref_template(crossref_format, crossref_mode)
+    assert(type(crossref_format) == 'table')
+    assert(type(crossref_mode) == 'string')
+    if type(crossref_format.template) == 'table' then
+        local crossref_template = crossref_format.template[crossref_mode]
+        if type(crossref_template) == 'string' or type(crossref_template) == 'Inlines' then
+            return pandoc.utils.stringify(crossref_template)
+        end
+    end
+    return pandoc.utils.stringify(crossref.format['*'].template[crossref_mode])
+end
+
 --- Format a cross-reference label.
 ---
 ---@param target table
 ---@return string
-local function format_crossref_label(target)
+local function format_crossref_label(target, mode, prefix, suffix)
     assert(type(target) == 'table')
     assert(type(target.type) == 'table')
     -- Resolve the target format
@@ -316,7 +350,9 @@ local function format_crossref_label(target)
     -- Make the template context
     local context = {
         name = resolve_crossref_name(format),
-        number = target.number
+        number = target.number,
+        prefix = pandoc.utils.stringify(prefix),
+        suffix = pandoc.utils.stringify(suffix)
     }
     -- If the target has an index:
     if target.index ~= nil then
@@ -328,9 +364,8 @@ local function format_crossref_label(target)
             number = target.index.number
         }
     end
-    -- Resolve the target template
-    local template = pandoc.utils.stringify(format.template or crossref.format['*'].template)
-    -- Render the template
+    -- Resolve the template and render the label:
+    local template = resolve_crossref_template(format, mode)
     return pandoc.layout.render(pandoc.template.apply(pandoc.template.compile(template), context))
 end
 
@@ -374,18 +409,21 @@ local get_crossref_targets = {
 --- Filter that resolve cross-references.
 local resolve_crossref = {
     Cite = function(el)
+        logging.temp('cite', el)
         if el.citations ~= nil and #el.citations == 1 then
+            local citation = el.citations[1]
             -- Parse the identifier
-            local identifier = parse_identifier(el.citations[1].id)
+            local identifier = parse_identifier(citation.id)
             -- Find the target for the identifier:
             local target = resolve_crossref_target(identifier)
             if target ~= nil then
-                local label = format_crossref_label(target)
+                local label = format_crossref_label(target, resolve_crossref_mode(citation.mode), citation.prefix,
+                    citation.suffix)
                 local anchor = format_crossref_anchor(identifier)
                 return pandoc.Link(label, anchor)
             else
-                log('target for possible cross-reference ' .. format_crossref_anchor(identifier) .. ' not found',
-                    'WARNING')
+                local cite = '@' .. el.citations[1].id
+                log('could not find target for ' .. cite, 'WARNING')
             end
         end
     end,
