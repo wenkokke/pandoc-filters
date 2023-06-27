@@ -329,7 +329,7 @@ local function format_crossref_label(target)
         }
     end
     -- Resolve the target template
-    local template = format.template or crossref.format['*'].template
+    local template = pandoc.utils.stringify(format.template or crossref.format['*'].template)
     -- Render the template
     return pandoc.layout.render(pandoc.template.apply(pandoc.template.compile(template), context))
 end
