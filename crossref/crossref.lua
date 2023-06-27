@@ -71,7 +71,10 @@ PANDOC_VERSION:must_be_at_least '3.0.1'
 -- Import 'pandoc.utils.type' as 'type'
 local type = pandoc.utils.type
 
--- Convert a verbosity to a level.
+--- Convert a verbosity to a level.
+---
+---@param verbosity string
+---@return number
 local function tolevel(verbosity)
     -- Normalise verbosity to an uppercase string.
     verbosity = pandoc.text.upper(pandoc.utils.stringify(verbosity))
@@ -88,7 +91,10 @@ local function tolevel(verbosity)
     end
 end
 
--- Write a message to stderr.
+--- Write a log message to stderr.
+---
+---@param msg string
+---@param verbosity string
 local function log(msg, verbosity)
     assert(type(msg) == 'string')
     assert(verbosity == 'INFO' or verbosity == 'WARNING' or verbosity == 'ERROR')
@@ -100,13 +106,22 @@ local function log(msg, verbosity)
     end
 end
 
--- Capitalise the input string.
+---Capitalise a string.
+---
+---@param s string
+---@return string
 local function capitalise(s)
     assert(type(s) == 'string')
     return pandoc.text.upper(pandoc.text.sub(s, 1, 1)) .. pandoc.text.sub(s, 2)
 end
 
--- Extend table `t1` with the values of table `t2`.
+--- Extend a table with the values from another table.
+---
+--- This function mutates its first argument.
+---
+---@param t1 table
+---@param t2 table
+---@return table
 local function extend(t1, t2)
     assert(type(t1) == 'table')
     assert(type(t2) == 'table')
@@ -124,7 +139,12 @@ local function extend(t1, t2)
     return t1
 end
 
--- Resolve the cross-reference type for a reference.
+--- Resolve the cross-reference type for a reference.
+---
+---@param identifier string
+---@param tag string
+---@param level number or nil
+---@return table
 local function resolve_crossref_type(identifier, tag, level)
     local identifier_col_ix = identifier:find(':')
     if identifier_col_ix ~= nil then
@@ -140,7 +160,10 @@ local function resolve_crossref_type(identifier, tag, level)
     end
 end
 
--- Resolve the format for a cross-reference type.
+--- Resolve the format for a cross-reference type.
+---
+---@param crossref_type table
+---@return table or nil
 local function resolve_crossref_format(crossref_type)
     assert(type(crossref) == 'table')
     assert(type(crossref.format) == 'table')
@@ -163,7 +186,11 @@ local function resolve_crossref_format(crossref_type)
     return crossref.format[crossref_type.type]
 end
 
--- Resolve the name for a cross-reference type.
+--- Resolve the name for a cross-reference type.
+---
+---@param crossref_format table
+---@param is_plural boolean or nil
+---@return string
 local function resolve_crossref_name(crossref_format, is_plural)
     assert(type(crossref_format) == 'table')
     assert(crossref_format.name ~= nil)
@@ -191,7 +218,10 @@ local function resolve_crossref_name(crossref_format, is_plural)
     return crossref_name
 end
 
--- Resolve the type for an unchecked cross-reference index.
+--- Resolve the type for an unchecked cross-reference index.
+---
+---@param crossref_type table
+---@return table
 local function resolve_crossref_index_type(crossref_type)
     assert(type(crossref_type) == 'table')
     assert(type(crossref_type.type) == 'string')
@@ -217,7 +247,9 @@ local function resolve_crossref_index_type(crossref_type)
     end
 end
 
--- Resolve the target for an indentifier.
+--- Resolve the target for an indentifier.
+---
+---@param identifier string
 local function resolve_crossref_target(identifier)
     local target = crossref.targets[identifier.identifier]
     -- Handle unchecked indexes:
@@ -233,7 +265,10 @@ local function resolve_crossref_target(identifier)
     return target
 end
 
--- Parse an identifier to a telescope.
+--- Parse an identifier with an optional index.
+---
+---@param identifier string
+---@return table
 local function parse_identifier(identifier)
     if crossref.enable_unchecked_indexes then
         local identifier_dot_ix = identifier:find('%.')
@@ -249,7 +284,10 @@ local function parse_identifier(identifier)
     }
 end
 
--- Format a cross-reference anchor.
+--- Format a cross-reference anchor.
+---
+---@param identifier string
+---@return string
 local function format_crossref_anchor(identifier)
     local anchor = '#'
     if type(identifier) == 'table' then
@@ -265,7 +303,10 @@ local function format_crossref_anchor(identifier)
     return anchor
 end
 
--- Format a cross-reference label.
+--- Format a cross-reference label.
+---
+---@param target table
+---@return string
 local function format_crossref_label(target)
     assert(type(target) == 'table')
     assert(type(target.type) == 'table')
@@ -292,7 +333,7 @@ local function format_crossref_label(target)
     return pandoc.layout.render(pandoc.template.apply(pandoc.template.compile(template), context))
 end
 
--- Filter that gets the cross-reference configuration from the document.
+--- Filter that gets the cross-reference configuration from the document.
 local get_crossref_configuration = {
     Meta = function(el)
         for key, value in pairs(el) do
@@ -303,7 +344,7 @@ local get_crossref_configuration = {
     end
 }
 
--- Filter that gets the cross-reference targets from the document.
+--- Filter that gets the cross-reference targets from the document.
 local get_crossref_targets = {
     Block = function(el)
         -- Initialise the table for cross-reference targets.
@@ -329,7 +370,7 @@ local get_crossref_targets = {
     traverse = 'topdown'
 }
 
--- Filter that resolve cross-references.
+--- Filter that resolve cross-references.
 local resolve_crossref = {
     Cite = function(el)
         if el.citations ~= nil and #el.citations == 1 then
