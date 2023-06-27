@@ -4,7 +4,6 @@
 ---@author Wen Kokke
 ---@license MIT
 ---@copyright Wen Kokke 2023
-local logging = require 'filters/wenkokke/crossref/logging'
 local crossref = {
     -- Should the reference names be capitalised?
     capitalise = true,
@@ -409,7 +408,6 @@ local get_crossref_targets = {
 --- Filter that resolve cross-references.
 local resolve_crossref = {
     Cite = function(el)
-        logging.temp('cite', el)
         if el.citations ~= nil and #el.citations == 1 then
             local citation = el.citations[1]
             -- Parse the identifier
