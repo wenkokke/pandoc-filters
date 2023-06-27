@@ -27,9 +27,6 @@ local crossref = {
         })[PANDOC_WRITER_OPTIONS.top_level_division]
     },
 
-    -- Default template
-    template = '${ name } ${ number }${ if(index) } (${ index.name } ${ index.number})${ endif }',
-
     -- List of default formats
     format = {
         CodeBlock = {
@@ -60,6 +57,10 @@ local crossref = {
         },
         Table = {
             name = {'table', 'tables'}
+        },
+        --- Default format
+        ['*'] = {
+            template = '${ name } ${ number }${ if(index) } (${ index.name } ${ index.number})${ endif }'
         }
     }
 }
@@ -328,7 +329,7 @@ local function format_crossref_label(target)
         }
     end
     -- Resolve the target template
-    local template = format.template or crossref.template
+    local template = format.template or crossref.format['*'].template
     -- Render the template
     return pandoc.layout.render(pandoc.template.apply(pandoc.template.compile(template), context))
 end
