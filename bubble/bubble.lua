@@ -14,10 +14,22 @@ PANDOC_VERSION:must_be_at_least '3.0.1'
 -- The bubble templates.
 local bubble_templates = {
     latex = [[
-      \begin{bubble}{${ name }}
+      \begin{bubble}${ if(options) }[${ for(options) }${ it.key }=${ it.value },${ endfor }]${ endif }{${ name }}
         ${ content }
       \end{bubble}
     ]]
+}
+
+-- The option names.
+local bubble_options = {
+    latex = {
+        ['background-color'] = 'fill',
+        ['border-color'] = 'draw',
+        ['text-color'] = 'text',
+        ['padding'] = 'inner sep',
+        ['border-radius'] = 'rounded corners',
+        ['min-width'] = 'text width'
+    }
 }
 
 -- Get a list of the supported formats.
@@ -57,14 +69,33 @@ local function get_template(format)
     return pandoc.template.compile(template_lines)
 end
 
+-- Get the target options.
+local function get_options(format, attributes)
+    assert(bubble_options[format] ~= nil)
+    local options = pandoc.List({})
+    if attributes ~= nil then
+        for key, value in pairs(attributes) do
+            if bubble_options[format][key] ~= nil then
+                options:insert({
+                    key = bubble_options[format][key],
+                    value = value
+                })
+            end
+        end
+    end
+    return options
+end
+
 function CodeBlock(el)
     if el.attr ~= nil and el.attr.classes ~= nil and el.attr.classes:includes('bubble') then
         local name, content = el.text:match('^(.*):%s*(.*)%s*$')
         local format = get_target_format()
         local template = get_template(format)
+        local options = get_options(format, el.attr.attributes)
         local document = pandoc.template.apply(template, {
             name = name,
-            content = content
+            content = content,
+            options = options
         })
         local rendered = pandoc.layout.render(document)
         return pandoc.RawBlock(format, rendered)
