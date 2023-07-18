@@ -13,7 +13,7 @@
 \define@key{bubble}{line width}{\def\mm@lineWidth{#1}}
 \define@key{bubble}{rounded corners}{\def\mm@roundedCorners{#1}}
 \define@key{bubble}{text width}{\def\mm@textWidth{#1}}
-\define@key{bubble}{flip}{\def\mm@flip{#1}}
+\define@key{bubble}{style}{\def\mm@style{#1}}
 \DeclareDocumentEnvironment{bubble}{ O{} m +b }{%
   \begingroup%
   % ========= KEY DEFAULTS + new ones =========
@@ -25,7 +25,7 @@
     line width={0.4pt},%
     rounded corners={2pt},%
     text width={\textwidth},%
-    flip={false},%
+    style={left},%
     #1}%
   \begin{tikzpicture}
     \node (0,0) [%
@@ -36,7 +36,7 @@
         \textbf{#2:}~#3
       \end{varwidth}};
     \begin{scope}[on background layer]
-      \ifthenelse{\equal{\mm@flip}{true}}{
+      \ifthenelse{\equal{\mm@style}{right}}{
         \draw[%
           \mm@draw,%
           fill=\mm@fill,%

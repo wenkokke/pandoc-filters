@@ -21,6 +21,7 @@ local bubble_templates = {
 -- The option names.
 local bubble_options = {
     latex = {
+        ['style'] = 'style',
         ['background-color'] = 'fill',
         ['border-color'] = 'draw',
         ['border-width'] = 'line width',
@@ -93,10 +94,15 @@ local function get_options(format, name, attributes, classes)
         end
     end
     if classes ~= nil then
-        if classes:includes('flip') then
+        if classes:includes('left') then
             options:insert({
-                key = 'flip',
-                value = 'true'
+                key = 'style',
+                value = 'left'
+            })
+        elseif classes:includes('right') then
+            options:insert({
+                key = 'style',
+                value = 'right'
             })
         end
     end
@@ -117,8 +123,7 @@ local get_bubble_configuration = {
 local resolve_bubble = {
     Div = function(el)
         if el.attr ~= nil and el.attr.classes ~= nil and el.attr.classes:includes('bubble') then
-            local name, content = pandoc.write(pandoc.Pandoc(el), FORMAT, PANDOC_WRITER_OPTIONS):match(
-                '^(.*):%s*(.*)%s*$')
+            local name, content = pandoc.write(pandoc.Pandoc(el), FORMAT):match('^(.*):%s*(.*)%s*$')
             local format = get_target_format()
             local template = get_template(format)
             local options = get_options(format, name, el.attr.attributes, el.attr.classes)
