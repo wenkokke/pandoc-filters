@@ -93,9 +93,9 @@ local function get_options(format, attributes, classes)
     return options
 end
 
-function CodeBlock(el)
+function Div(el)
     if el.attr ~= nil and el.attr.classes ~= nil and el.attr.classes:includes('bubble') then
-        local name, content = el.text:match('^(.*):%s*(.*)%s*$')
+        local name, content = pandoc.write(pandoc.Pandoc(el), FORMAT, PANDOC_WRITER_OPTIONS):match('^(.*):%s*(.*)%s*$')
         local format = get_target_format()
         local template = get_template(format)
         local options = get_options(format, el.attr.attributes, el.attr.classes)
