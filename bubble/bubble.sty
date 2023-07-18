@@ -1,3 +1,4 @@
+\RequirePackage{ifthen}
 \RequirePackage{keyval}
 \RequirePackage{tikz}
 \usetikzlibrary{backgrounds,calc,positioning,shapes.misc}
@@ -9,27 +10,65 @@
 \define@key{bubble}{fill}{\def\mm@fill{#1}}
 \define@key{bubble}{text}{\def\mm@text{#1}}
 \define@key{bubble}{inner sep}{\def\mm@innerSep{#1}}
+\define@key{bubble}{line width}{\def\mm@lineWidth{#1}}
 \define@key{bubble}{rounded corners}{\def\mm@roundedCorners{#1}}
 \define@key{bubble}{text width}{\def\mm@textWidth{#1}}
+\define@key{bubble}{flip}{\def\mm@flip{#1}}
 \DeclareDocumentEnvironment{bubble}{ O{} m +b }{%
   \begingroup%
   % ========= KEY DEFAULTS + new ones =========
-  \setkeys{bubble}{draw={black},fill={lightgray},text={black},inner sep={0.5em},rounded corners={2pt},text width={15em},#1}%
+  \setkeys{bubble}{%
+    draw={black},%
+    fill={lightgray},%
+    text={black},%
+    inner sep={0.5em},%
+    line width={0.4pt},%
+    rounded corners={2pt},%
+    text width={\textwidth},%
+    flip={false},%
+    #1}%
   \begin{tikzpicture}
-    \node (0,0) [text=\mm@text,inner sep=\mm@innerSep] (content) {%
+    \node (0,0) [%
+      text=\mm@text,%
+      inner sep=\mm@innerSep%
+    ] (content) {%
       \begin{varwidth}{\mm@textWidth}%
         \textbf{#2:}~#3
       \end{varwidth}};
     \begin{scope}[on background layer]
-      \draw[\mm@draw,fill=\mm@fill]
-      (content.south west) --
-      ++(0,-0.5em)
-      {[rounded corners=\mm@roundedCorners] --
-        ++(0.5em,0.5em) --
+      \ifthenelse{\equal{\mm@flip}{true}}{
+        \draw[%
+          \mm@draw,%
+          fill=\mm@fill,%
+          line width=\mm@lineWidth%
+        ]
         (content.south east) --
-        (content.north east) --
-        (content.north west) --
-        cycle};
+        ++(0,-0.5em)
+        {[%
+              rounded corners=\mm@roundedCorners%
+            ] --
+          ++(-0.5em,0.5em) --
+          (content.south west) --
+          (content.north west) --
+          (content.north east) --
+          cycle};
+      }{%
+        \draw[%
+          \mm@draw,%
+          fill=\mm@fill,%
+          line width=\mm@lineWidth%
+        ]
+        (content.south west) --
+        ++(0,-0.5em)
+        {[%
+              rounded corners=\mm@roundedCorners%
+            ] --
+          ++(0.5em,0.5em) --
+          (content.south east) --
+          (content.north east) --
+          (content.north west) --
+          cycle};
+      }
     \end{scope}
   \end{tikzpicture}
   \endgroup%

@@ -25,6 +25,7 @@ local bubble_options = {
     latex = {
         ['background-color'] = 'fill',
         ['border-color'] = 'draw',
+        ['border-width'] = 'line width',
         ['text-color'] = 'text',
         ['padding'] = 'inner sep',
         ['border-radius'] = 'rounded corners',
@@ -70,7 +71,7 @@ local function get_template(format)
 end
 
 -- Get the target options.
-local function get_options(format, attributes)
+local function get_options(format, attributes, classes)
     assert(bubble_options[format] ~= nil)
     local options = pandoc.List({})
     if attributes ~= nil then
@@ -83,6 +84,12 @@ local function get_options(format, attributes)
             end
         end
     end
+    if classes ~= nil then
+        options:insert({
+            key = 'flip',
+            value = tostring(classes:includes('flip'))
+        })
+    end
     return options
 end
 
@@ -91,7 +98,7 @@ function CodeBlock(el)
         local name, content = el.text:match('^(.*):%s*(.*)%s*$')
         local format = get_target_format()
         local template = get_template(format)
-        local options = get_options(format, el.attr.attributes)
+        local options = get_options(format, el.attr.attributes, el.attr.classes)
         local document = pandoc.template.apply(template, {
             name = name,
             content = content,
