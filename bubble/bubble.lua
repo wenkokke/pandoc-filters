@@ -5,8 +5,6 @@
 ---@license MIT
 ---@copyright Wen Kokke 2023
 local bubble = {}
-local logging = require 'logging'
-local type = pandoc.utils.type
 
 -- Uses `pandoc.template.apply`, which was added in Pandoc 3.0.1.
 PANDOC_VERSION:must_be_at_least '3.0.1'
@@ -71,9 +69,19 @@ local function get_template(format)
 end
 
 -- Get the target options.
-local function get_options(format, attributes, classes)
+local function get_options(format, name, attributes, classes)
     assert(bubble_options[format] ~= nil)
     local options = pandoc.List({})
+    if bubble[name] ~= nil then
+        for key, value in pairs(bubble[name]) do
+            if bubble_options[format][key] ~= nil then
+                options:insert({
+                    key = bubble_options[format][key],
+                    value = pandoc.utils.stringify(value)
+                })
+            end
+        end
+    end
     if attributes ~= nil then
         for key, value in pairs(attributes) do
             if bubble_options[format][key] ~= nil then
@@ -93,18 +101,37 @@ local function get_options(format, attributes, classes)
     return options
 end
 
-function Div(el)
-    if el.attr ~= nil and el.attr.classes ~= nil and el.attr.classes:includes('bubble') then
-        local name, content = pandoc.write(pandoc.Pandoc(el), FORMAT, PANDOC_WRITER_OPTIONS):match('^(.*):%s*(.*)%s*$')
-        local format = get_target_format()
-        local template = get_template(format)
-        local options = get_options(format, el.attr.attributes, el.attr.classes)
-        local document = pandoc.template.apply(template, {
-            name = name,
-            content = content,
-            options = options
-        })
-        local rendered = pandoc.layout.render(document)
-        return pandoc.RawBlock(format, rendered)
+--- Filter that gets the bubble configuration from the document.
+local get_bubble_configuration = {
+    Meta = function(el)
+        for key, value in pairs(el) do
+            if key == 'bubble' then
+                bubble = value
+            end
+        end
     end
+}
+
+local resolve_bubble = {
+    Div = function(el)
+        if el.attr ~= nil and el.attr.classes ~= nil and el.attr.classes:includes('bubble') then
+            local name, content = pandoc.write(pandoc.Pandoc(el), FORMAT, PANDOC_WRITER_OPTIONS):match(
+                '^(.*):%s*(.*)%s*$')
+            local format = get_target_format()
+            local template = get_template(format)
+            local options = get_options(format, name, el.attr.attributes, el.attr.classes)
+            local document = pandoc.template.apply(template, {
+                name = name,
+                content = content,
+                options = options
+            })
+            local rendered = pandoc.layout.render(document)
+            return pandoc.RawBlock(format, rendered)
+        end
+    end
+}
+
+function Pandoc(doc)
+    doc:walk(get_bubble_configuration)
+    return doc:walk(resolve_bubble)
 end
