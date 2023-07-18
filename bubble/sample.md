@@ -6,6 +6,6 @@ bubble:
     flip: true
 ---
 
-:::{.bubble   .flip}
+:::{.bubble}
 Sarah: Hello World!
 :::

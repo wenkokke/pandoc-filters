@@ -93,10 +93,12 @@ local function get_options(format, name, attributes, classes)
         end
     end
     if classes ~= nil then
-        options:insert({
-            key = 'flip',
-            value = tostring(classes:includes('flip'))
-        })
+        if classes:includes('flip') then
+            options:insert({
+                key = 'flip',
+                value = 'true'
+            })
+        end
     end
     return options
 end
