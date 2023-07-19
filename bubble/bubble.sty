@@ -25,7 +25,7 @@
     line width={0.4pt},%
     rounded corners={2pt},%
     text width={\textwidth},%
-    style={left},%
+    style={bottom-left},%
     #1}%
   \begin{tikzpicture}
     \node (0,0) [%
@@ -36,7 +36,7 @@
         \textbf{#2:}~#3
       \end{varwidth}};
     \begin{scope}[on background layer]
-      \ifthenelse{\equal{\mm@style}{right}}{
+      \ifthenelse{\equal{\mm@style}{bottom-right}}{
         \draw[%
           \mm@draw,%
           fill=\mm@fill,%

@@ -5,12 +5,20 @@
 ---@license MIT
 ---@copyright Wen Kokke 2023
 local bubble = {}
+local logging = require 'logging'
 
 -- Uses `pandoc.template.apply`, which was added in Pandoc 3.0.1.
 PANDOC_VERSION:must_be_at_least '3.0.1'
 
+local BUBBLE_CLASS = 'bubble'
+
 -- The bubble templates.
-local bubble_templates = {
+local BUBBLE_TEMPLATES = {
+    html = [[
+        <p class="bubble${ if(options.style) } bubble-${ style }${ endif }"${ if(options) } style="${ for(options) }${ it.key }:${ it.value };${ endfor }"${ endif }>
+          <span class="bubble-name">${ name }</span> ${ content }
+        </p>
+    ]],
     latex = [[
       \begin{bubble}${ if(options) }[${ for(options) }${ it.key }=${ it.value },${ endfor }]${ endif }{${ name }}
         ${ content }
@@ -18,24 +26,30 @@ local bubble_templates = {
     ]]
 }
 
--- The option names.
-local bubble_options = {
+-- The mapping from option names to the target format.
+local BUBBLE_OPTIONS = {
+    html = {},
     latex = {
         ['style'] = 'style',
         ['background-color'] = 'fill',
         ['border-color'] = 'draw',
         ['border-width'] = 'line width',
-        ['text-color'] = 'text',
+        ['color'] = 'text',
         ['padding'] = 'inner sep',
         ['border-radius'] = 'rounded corners',
         ['min-width'] = 'text width'
     }
 }
 
+-- Get the bubble class name.
+local function get_bubble_class()
+    return bubble['class'] or BUBBLE_CLASS
+end
+
 -- Get a list of the supported formats.
 local function get_supported_formats()
     local supported_formats = {}
-    for format, template_string in pairs(bubble_templates) do
+    for format, template_string in pairs(BUBBLE_TEMPLATES) do
         supported_formats:insert(format)
     end
     return supported_formats
@@ -55,8 +69,8 @@ end
 
 -- Get the target template.
 local function get_template(format)
-    assert(bubble_templates[format] ~= nil)
-    local indent, template_string = bubble_templates[format]:match('^(%s*)(.*)\n%s*$')
+    assert(BUBBLE_TEMPLATES[format] ~= nil)
+    local indent, template_string = BUBBLE_TEMPLATES[format]:match('^(%s*)(.*)\n%s*$')
     local template_lines = nil
     for template_line in string.gmatch(template_string, "([^\n]+)") do
         if template_lines == nil then
@@ -71,13 +85,13 @@ end
 
 -- Get the target options.
 local function get_options(format, name, attributes, classes)
-    assert(bubble_options[format] ~= nil)
+    assert(BUBBLE_OPTIONS[format] ~= nil)
     local options = pandoc.List({})
     if bubble[name] ~= nil then
         for key, value in pairs(bubble[name]) do
-            if bubble_options[format][key] ~= nil then
+            if BUBBLE_OPTIONS[format][key] ~= nil then
                 options:insert({
-                    key = bubble_options[format][key],
+                    key = BUBBLE_OPTIONS[format][key],
                     value = pandoc.utils.stringify(value)
                 })
             end
@@ -85,24 +99,24 @@ local function get_options(format, name, attributes, classes)
     end
     if attributes ~= nil then
         for key, value in pairs(attributes) do
-            if bubble_options[format][key] ~= nil then
+            if BUBBLE_OPTIONS[format][key] ~= nil then
                 options:insert({
-                    key = bubble_options[format][key],
+                    key = BUBBLE_OPTIONS[format][key],
                     value = value
                 })
             end
         end
     end
     if classes ~= nil then
-        if classes:includes('left') then
+        if pandoc.List.includes(classes, 'bottom-left') then
             options:insert({
                 key = 'style',
-                value = 'left'
+                value = 'bottom-left'
             })
-        elseif classes:includes('right') then
+        elseif pandoc.List.includes(classes, 'bottom-right') then
             options:insert({
                 key = 'style',
-                value = 'right'
+                value = 'bottom-right'
             })
         end
     end
@@ -120,20 +134,47 @@ local get_bubble_configuration = {
     end
 }
 
+-- Test whether or not a Div is a bubble.
+local function is_bubble(el)
+    return el ~= nil and el.attr ~= nil and el.attr.classes ~= nil and el.attr.classes:includes(get_bubble_class())
+end
+
+-- Render a single bubble.
+local function render_bubbles(el)
+    local format = get_target_format()
+    local template = get_template(format)
+    local bubbles = pandoc.Blocks({})
+    for key, para in pairs(el.content or {}) do
+        local para_document = pandoc.Pandoc(pandoc.Blocks({pandoc.Plain(para.content)}))
+        local para_rendered = pandoc.write(para_document, FORMAT)
+        local name, content = para_rendered:match('^(.*):%s*(.*)%s*$')
+        logging.temp('name', name)
+        if name == nil or content == nil then
+            return el
+        end
+        local attributes = ((el.attr or {}).attributes or {})
+        local classes = ((el.attr or {}).classes or {})
+        local options = get_options(format, name, attributes, classes)
+        local bubble_document = pandoc.template.apply(template, {
+            name = name,
+            content = content,
+            options = options
+        })
+        local bubble_rendered = pandoc.layout.render(bubble_document)
+        bubbles:insert(pandoc.RawBlock(format, bubble_rendered))
+    end
+    return pandoc.Blocks(bubbles)
+end
+
 local resolve_bubble = {
     Div = function(el)
-        if el.attr ~= nil and el.attr.classes ~= nil and el.attr.classes:includes('bubble') then
-            local name, content = pandoc.write(pandoc.Pandoc(el), FORMAT):match('^(.*):%s*(.*)%s*$')
-            local format = get_target_format()
-            local template = get_template(format)
-            local options = get_options(format, name, el.attr.attributes, el.attr.classes)
-            local document = pandoc.template.apply(template, {
-                name = name,
-                content = content,
-                options = options
-            })
-            local rendered = pandoc.layout.render(document)
-            return pandoc.RawBlock(format, rendered)
+        if is_bubble(el) then
+            return render_bubbles(el)
+        end
+    end,
+    BlockQuote = function(el)
+        if bubble.blockquote then
+            return render_bubbles(el)
         end
     end
 }
