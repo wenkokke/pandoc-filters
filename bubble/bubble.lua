@@ -15,9 +15,77 @@ local BUBBLE_CLASS = 'bubble'
 -- The bubble templates.
 local BUBBLE_TEMPLATES = {
     html = [[
-        <p class="bubble${ if(options.style) } bubble-${ style }${ endif }"${ if(options) } style="${ for(options) }${ it.key }:${ it.value };${ endfor }"${ endif }>
-          <span class="bubble-name">${ name }</span> ${ content }
+        <p class="bubble bubble-${ style } bubble-${ hash }">
+          <strong class="bubble-name">${ name }:</strong> ${ content }
         </p>
+    ]],
+    css = [[
+        .bubble-${ hash } {
+            position: relative;
+            padding: ${ padding };
+            color: ${ color };
+            background-color: ${ background-color };
+            border-color: ${ border-color };
+            border-style: solid;
+            border-width: ${ border-width };
+            -webkit-border-radius: ${ border-radius } ${ border-radius } ${ border-radius } ${ border-radius };
+            -moz-border-radius: ${ border-radius } ${ border-radius } ${ border-radius } ${ border-radius };
+            border-radius: ${ border-radius } ${ border-radius } ${ border-radius } ${ border-radius };
+          }
+          .bubble-bottom-left {
+            -webkit-border-radius: ${ border-radius } ${ border-radius } ${ border-radius } 0;
+            -moz-border-radius: ${ border-radius } ${ border-radius } ${ border-radius } 0;
+            border-radius: ${ border-radius } ${ border-radius } ${ border-radius } 0;
+          }
+          .bubble-bottom-left.bubble-${ hash }:after {
+            content: "";
+            position: absolute;
+            bottom: calc(-1em + 2 * ${ border-width } + 1px);
+            left: 0px;
+            border-width: 0 0 calc(1em - 2 * ${ border-width } + 1px) calc(1em - 2 * ${ border-width } + 1px);
+            border-style: solid;
+            border-color: transparent ${ background-color };
+            display: block;
+            width: 0;
+          }
+          .bubble-bottom-left.bubble-${ hash }:before {
+            content: "";
+            position: absolute;
+            bottom: -1em;
+            left: -${ border-width };
+            border-width: 0 0 1em 1em;
+            border-style: solid;
+            border-color: transparent ${ border-color };
+            display: block;
+            width: 0;
+          }
+          .bubble-bottom-right {
+            -webkit-border-radius: ${ border-radius } ${ border-radius } 0 ${ border-radius };
+            -moz-border-radius: ${ border-radius } ${ border-radius } 0 ${ border-radius };
+            border-radius: ${ border-radius } ${ border-radius } 0 ${ border-radius };
+          }
+          .bubble-bottom-right.bubble-${ hash }:after {
+            content: "";
+            position: absolute;
+            bottom: calc(-1em + 2 * ${ border-width });
+            right: 0px;
+            border-width: calc(1em - 2 * ${ border-width }) 0 0 calc(1em - 2 * ${ border-width });
+            border-style: solid;
+            border-color: ${ background-color } transparent;
+            display: block;
+            width: 0;
+          }
+          .bubble-bottom-right.bubble-${ hash }:before {
+            content: "";
+            position: absolute;
+            bottom: -1em;
+            right: calc(0px - ${ border-width });
+            border-width: 1em 0 0 1em;
+            border-style: solid;
+            border-color: ${ border-color } transparent;
+            display: block;
+            width: 0;
+          }
     ]],
     latex = [[
       \begin{bubble}${ if(options) }[${ for(options) }${ it.key }=${ it.value },${ endfor }]${ endif }{${ name }}
@@ -27,17 +95,33 @@ local BUBBLE_TEMPLATES = {
 }
 
 -- The mapping from option names to the target format.
-local BUBBLE_OPTIONS = {
-    html = {},
-    latex = {
+local BUBBLE_options = {
+    html_names = {
+        ['style'] = 'style',
+        ['background-color'] = 'background-color',
+        ['border-color'] = 'border-color',
+        ['border-width'] = 'border-width',
+        ['color'] = 'color',
+        ['padding'] = 'padding',
+        ['border-radius'] = 'border-radius'
+    },
+    latex_names = {
         ['style'] = 'style',
         ['background-color'] = 'fill',
         ['border-color'] = 'draw',
         ['border-width'] = 'line width',
         ['color'] = 'text',
         ['padding'] = 'inner sep',
-        ['border-radius'] = 'rounded corners',
-        ['min-width'] = 'text width'
+        ['border-radius'] = 'rounded corners'
+    },
+    defaults = {
+        ['style'] = 'bottom-left',
+        ['background-color'] = 'lightgray',
+        ['border-color'] = 'darkgray',
+        ['border-width'] = '0.125em',
+        ['color'] = 'black',
+        ['padding'] = '0.5em',
+        ['border-radius'] = '0.5em'
     }
 }
 
@@ -84,42 +168,53 @@ local function get_template(format)
 end
 
 -- Get the target options.
-local function get_options(format, name, attributes, classes)
-    assert(BUBBLE_OPTIONS[format] ~= nil)
+local function get_context(format, name, attributes, classes)
+    local option_names = BUBBLE_options[format .. '_names']
+    assert(option_names ~= nil)
     local options = pandoc.List({})
+    for key, value in pairs(BUBBLE_options.defaults) do
+        if option_names[key] ~= nil then
+            options[option_names[key]] = value
+        end
+    end
     if bubble[name] ~= nil then
         for key, value in pairs(bubble[name]) do
-            if BUBBLE_OPTIONS[format][key] ~= nil then
-                options:insert({
-                    key = BUBBLE_OPTIONS[format][key],
-                    value = pandoc.utils.stringify(value)
-                })
+            if option_names[key] ~= nil then
+                options[option_names[key]] = pandoc.utils.stringify(value)
             end
         end
     end
     if attributes ~= nil then
         for key, value in pairs(attributes) do
-            if BUBBLE_OPTIONS[format][key] ~= nil then
-                options:insert({
-                    key = BUBBLE_OPTIONS[format][key],
-                    value = value
-                })
+            if option_names[key] ~= nil then
+                options[option_names[key]] = value
             end
         end
     end
     if classes ~= nil then
         if pandoc.List.includes(classes, 'bottom-left') then
-            options:insert({
-                key = 'style',
-                value = 'bottom-left'
-            })
+            options.style = 'bottom-left'
         elseif pandoc.List.includes(classes, 'bottom-right') then
-            options:insert({
-                key = 'style',
-                value = 'bottom-right'
-            })
+            options.style = 'bottom-right'
         end
     end
+    -- Make list of key-value pairs
+    local option_list = pandoc.List({})
+    for key, value in pairs(options) do
+        option_list:insert({
+            key = key,
+            value = value
+        })
+    end
+    -- Make hash of key-value pairs
+    local hash_input = ''
+    for key, value in pairs(options) do
+        hash_input = hash_input .. key .. '=' .. value .. ','
+    end
+    -- Insert list, hash, and boolean for style
+    options.hash = pandoc.utils.sha1(hash_input)
+    options.options = option_list
+    options[options.style] = true
     return options
 end
 
@@ -139,29 +234,33 @@ local function is_bubble(el)
     return el ~= nil and el.attr ~= nil and el.attr.classes ~= nil and el.attr.classes:includes(get_bubble_class())
 end
 
+-- Global table tracking bubble styles
+local bubble_styles = {}
+
 -- Render a single bubble.
 local function render_bubbles(el)
     local format = get_target_format()
-    local template = get_template(format)
     local bubbles = pandoc.Blocks({})
     for key, para in pairs(el.content or {}) do
-        local para_document = pandoc.Pandoc(pandoc.Blocks({pandoc.Plain(para.content)}))
-        local para_rendered = pandoc.write(para_document, FORMAT)
+        local para_rendered = pandoc.write(pandoc.Pandoc(pandoc.Blocks({pandoc.Plain(para.content)})), FORMAT)
         local name, content = para_rendered:match('^(.*):%s*(.*)%s*$')
-        logging.temp('name', name)
         if name == nil or content == nil then
             return el
         end
+        -- Create context
         local attributes = ((el.attr or {}).attributes or {})
         local classes = ((el.attr or {}).classes or {})
-        local options = get_options(format, name, attributes, classes)
-        local bubble_document = pandoc.template.apply(template, {
-            name = name,
-            content = content,
-            options = options
-        })
-        local bubble_rendered = pandoc.layout.render(bubble_document)
+        local context = get_context(format, name, attributes, classes)
+        context.name = name
+        context.content = content
+        -- Render bubble
+        local bubble_rendered = pandoc.layout.render(pandoc.template.apply(get_template(format), context))
         bubbles:insert(pandoc.RawBlock(format, bubble_rendered))
+        -- If format is HTML, render CSS
+        if FORMAT:match('html') then
+            local bubble_style_rendered = pandoc.layout.render(pandoc.template.apply(get_template('css'), context))
+            bubble_styles[context.hash] = bubble_style_rendered
+        end
     end
     return pandoc.Blocks(bubbles)
 end
@@ -176,6 +275,12 @@ local resolve_bubble = {
         if bubble.blockquote then
             return render_bubbles(el)
         end
+    end,
+    Meta = function(el)
+        for key, value in pairs(bubble_styles) do
+            el['highlighting-css'] = (el['highlighting-css'] or '') .. value .. '\n'
+        end
+        return el
     end
 }
 

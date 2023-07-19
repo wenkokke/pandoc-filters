@@ -8,16 +8,16 @@ PRETTIER ?= npm x prettier --
 
 .PHONY: test
 test: sample.md bubble.lua
-#	@$(PANDOC) -L bubble.lua -t html sample.md \
-#		| $(PRETTIER) --parser=html \
-#		| $(DIFF) expected.html -
+	@$(PANDOC) -L bubble.lua -t html sample.md \
+		| $(PRETTIER) --parser=html \
+		| $(DIFF) expected.html -
 	@$(PANDOC) -L bubble.lua -t latex sample.md \
 		| $(DIFF) expected.tex -
 
 .PHONY: test-update
 test-update: sample.md bubble.lua
-#	@$(PANDOC) -L bubble.lua -t html sample.md \
-#		| $(PRETTIER) --parser=html \
-#		> expected.html
+	@$(PANDOC) -L bubble.lua -t html sample.md \
+		| $(PRETTIER) --parser=html \
+		> expected.html
 	@$(PANDOC) -L bubble.lua -t latex sample.md \
 		-o expected.tex
