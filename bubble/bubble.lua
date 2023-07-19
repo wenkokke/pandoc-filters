@@ -210,10 +210,9 @@ local function get_context(format, name, attributes, classes)
     for key, value in pairs(options) do
         hash_input = hash_input .. key .. '=' .. value .. ','
     end
-    -- Insert list, hash, and boolean for style
+    -- Insert list and hash
     options.hash = pandoc.utils.sha1(hash_input)
     options.options = option_list
-    options[options.style] = true
     return options
 end
 
