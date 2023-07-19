@@ -5,7 +5,6 @@
 ---@license MIT
 ---@copyright Wen Kokke 2023
 local bubble = {}
-local logging = require 'logging'
 
 -- Uses `pandoc.template.apply`, which was added in Pandoc 3.0.1.
 PANDOC_VERSION:must_be_at_least '3.0.1'
