@@ -214,17 +214,17 @@ local function get_context(format, name, attributes, classes)
             value = value
         })
     end
-    option_list:sort(function(opt1, opt2)
-        if opt1.key ~= opt2.key then
-            return opt1.key < opt2.key
+    option_list:sort(function(option1, option2)
+        if option1.key ~= option2.key then
+            return option1.key < option2.key
         else
-            return opt1.value < opt2.value
+            return option1.value < option2.value
         end
     end)
     -- Insert hash
     local hash_input = ''
-    for key, value in pairs(options) do
-        hash_input = hash_input .. key .. '=' .. value .. ','
+    for _index, option in pairs(option_list) do
+        hash_input = hash_input .. option.key .. '=' .. option.value .. ','
     end
     -- Insert list and hash
     options.hash = pandoc.utils.sha1(hash_input)
