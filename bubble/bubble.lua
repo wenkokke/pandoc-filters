@@ -21,7 +21,7 @@ local BUBBLE_CLASS = 'bubble'
 -- The bubble templates.
 local BUBBLE_TEMPLATES = {
     html = [[
-        <p class="bubble bubble-${ style } bubble-${ hash }">
+        <p class="bubble bubble-${ name } bubble-${ style } bubble-${ hash }">
           <strong class="bubble-name">${ name }:</strong> ${ content }
         </p>
     ]],
@@ -177,12 +177,14 @@ end
 local function get_context(format, name, attributes, classes)
     local option_names = BUBBLE_options[format .. '_names']
     assert(option_names ~= nil)
+    -- Load the default options
     local options = pandoc.List({})
     for key, value in pairs(BUBBLE_options.defaults) do
         if option_names[key] ~= nil then
             options[option_names[key]] = value
         end
     end
+    -- Load the options by name
     if bubble[name] ~= nil then
         for key, value in pairs(bubble[name]) do
             if option_names[key] ~= nil then
@@ -212,7 +214,7 @@ local function get_context(format, name, attributes, classes)
             value = value
         })
     end
-    -- Make hash of key-value pairs
+    -- Insert hash
     local hash_input = ''
     for key, value in pairs(options) do
         hash_input = hash_input .. key .. '=' .. value .. ','
