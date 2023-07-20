@@ -269,7 +269,7 @@ local function render_bubbles(el)
             bubble_styles[context.hash] = bubble_style_rendered
         end
     end
-    return pandoc.Blocks(bubbles)
+    return pandoc.Div(pandoc.Blocks(bubbles), pandoc.Attr(nil, {'bubbles'}))
 end
 
 local resolve_bubble = {
