@@ -6,6 +6,13 @@
 ---@copyright Wen Kokke 2023
 local bubble = {}
 
+-- Load logging module:
+local filters_directory = pandoc.path.directory(pandoc.path.directory(PANDOC_SCRIPT_FILE))
+local current_directory = pandoc.system.get_working_directory()
+local logging_directory = pandoc.path.make_relative(pandoc.path.join({filters_directory, 'logging'}), current_directory)
+local logging_file_path = pandoc.path.join({logging_directory, 'logging'})
+local logging = require(logging_file_path:gsub(pandoc.path.separator, '.'))
+
 -- Uses `pandoc.template.apply`, which was added in Pandoc 3.0.1.
 PANDOC_VERSION:must_be_at_least '3.0.1'
 
