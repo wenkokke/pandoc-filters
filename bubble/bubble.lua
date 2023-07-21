@@ -256,7 +256,7 @@ local function render_bubbles(el)
     local format = get_target_format()
     local bubbles = pandoc.Blocks({})
     for key, para in pairs(el.content or {}) do
-        local para_rendered = pandoc.write(pandoc.Pandoc(pandoc.Blocks({pandoc.Plain(para.content)})), FORMAT)
+        local para_rendered = pandoc.write(pandoc.Pandoc(pandoc.Blocks({pandoc.Plain(para.content)})), format)
         local name, content = para_rendered:match('^(.*):%s*(.*)%s*$')
         if name == nil or content == nil then
             return el
