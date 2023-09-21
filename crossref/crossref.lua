@@ -293,8 +293,10 @@ end
 ---
 ---@param identifier string
 ---@return string
-local function format_crossref_anchor(identifier)
-    local anchor = '#'
+local function format_crossref_anchor(identifier, anchor)
+    if anchor == nil then
+        anchor = ''
+    end
     if type(identifier) == 'table' then
         anchor = anchor .. identifier.identifier
         if identifier.index ~= nil then
@@ -415,10 +417,17 @@ local resolve_crossref = {
             -- Find the target for the identifier:
             local target = resolve_crossref_target(identifier)
             if target ~= nil then
-                local label = format_crossref_label(target, resolve_crossref_mode(citation.mode), citation.prefix,
-                    citation.suffix)
-                local anchor = format_crossref_anchor(identifier)
-                return pandoc.Link(label, anchor)
+                local mode = resolve_crossref_mode(citation.mode)
+                if FORMAT:match('latex') then
+                    local anchor = format_crossref_anchor(identifier, '')
+                    target.number = "\\ref{" .. anchor .. "}"
+                    local label = format_crossref_label(target, mode, citation.prefix, citation.suffix)
+                    return pandoc.RawInline('latex', label)
+                else
+                    local anchor = format_crossref_anchor(identifier, '#')
+                    local label = format_crossref_label(target, mode, citation.prefix, citation.suffix)
+                    return pandoc.Link(label, anchor)
+                end
             else
                 local cite = '@' .. el.citations[1].id
                 log('could not find target for ' .. cite, 'WARNING')
@@ -434,4 +443,3 @@ function Pandoc(doc)
     doc:walk(get_crossref_targets)
     return doc:walk(resolve_crossref)
 end
-
