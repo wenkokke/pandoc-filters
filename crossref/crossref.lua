@@ -413,7 +413,7 @@ local get_crossref_targets = {
             -- Insert the label in the Figure caption:
             if not FORMAT:match('latex') and is_figure then
                 local label = format_crossref_label(target, 'intext', '', '')
-                el.caption.long:insert(1, pandoc.Para(
+                el.caption.long:insert(1, pandoc.Plain(
                     pandoc.Inlines({pandoc.Str(label), pandoc.Str(":"), pandoc.Space()})))
             end
             -- Insert an entry for this cross-reference target.
