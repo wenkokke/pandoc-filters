@@ -389,19 +389,37 @@ local get_crossref_targets = {
             crossref.targets = {}
         end
         -- If the element has an identifier:
-        if el.attr ~= nil and el.attr.identifier ~= nil and el.attr.identifier ~= '' then
+        local is_figure = el.tag == 'Figure'
+        local has_identifier = el.attr ~= nil and el.attr.identifier ~= nil and el.attr.identifier ~= ''
+        if is_figure or has_identifier then
             local crossref_type = resolve_crossref_type(el.attr.identifier, el.tag, el.level)
             assert(type(crossref.format) == 'table')
             -- Retrieve the format for this cross-reference type.
             local crossref_format = resolve_crossref_format(crossref_type)
             -- Increment the count for this cross-reference type.
             crossref_format.count = (crossref_format.count or 0) + 1
-            -- Insert an entry for this cross-reference target.
-            crossref.targets[el.attr.identifier] = {
+            -- Insert the identifier for this cross-reference target.
+            if not has_identifier then
+                if el.attr == nil then
+                    el.attr = {}
+                end
+                el.attr.identifier = crossref_type.type .. ":" .. crossref_format.count
+            end
+            -- Create a target for the value:
+            local target = {
                 type = crossref_type,
                 number = crossref_format.count
             }
+            -- Insert the label in the Figure caption:
+            if not FORMAT:match('latex') and is_figure then
+                local label = format_crossref_label(target, 'intext', '', '')
+                el.caption.long:insert(1, pandoc.Para(
+                    pandoc.Inlines({pandoc.Str(label), pandoc.Str(":"), pandoc.Space()})))
+            end
+            -- Insert an entry for this cross-reference target.
+            crossref.targets[el.attr.identifier] = target
         end
+        return el
     end,
     -- Ensure the document is traversed in top-down depth-first order
     traverse = 'topdown'
@@ -440,6 +458,6 @@ local resolve_crossref = {
 
 function Pandoc(doc)
     doc:walk(get_crossref_configuration)
-    doc:walk(get_crossref_targets)
+    doc = doc:walk(get_crossref_targets)
     return doc:walk(resolve_crossref)
 end
