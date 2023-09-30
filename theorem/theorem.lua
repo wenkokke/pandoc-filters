@@ -36,6 +36,11 @@ local theorem_styles = {
         counter = 1,
         environment = 'claim'
     },
+    Remark = {
+        classes = {'remark'},
+        counter = 1,
+        environment = 'remark'
+    },
     Example = {
         classes = {'example'},
         counter = 1,
