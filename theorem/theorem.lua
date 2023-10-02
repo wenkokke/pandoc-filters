@@ -85,6 +85,19 @@ local function add_theorem_name(result, value)
     end
 end
 
+local function add_theorem_identifier(result, value)
+    if result.theorem_identifier == nil then
+        result.theorem_identifier = {}
+    end
+    if type(value) == "string" then
+        if value ~= "" then
+            table.insert(result.theorem_identifier, pandoc.Str(value))
+        end
+    else
+        table.insert(result.theorem_identifier, value)
+    end
+end
+
 local function add_remainder(result, value)
     if result.remainder == nil then
         result.remainder = {}
@@ -120,8 +133,18 @@ local theorem_header_lexer = {
         output_state = "after_rpar",
         action = add_theorem_name
     }, {
-        match = "%.(.*)",
+        match = "%{#([^}]*)",
         input_states = {"after_kw", "after_num", "after_rpar"},
+        output_state = "after_lbrace",
+        action = add_theorem_identifier
+    }, {
+        match = "([^}]*)%}",
+        input_states = {"after_lbrace"},
+        output_state = "after_rbrace",
+        action = add_theorem_identifier
+    }, {
+        match = "%.(.*)",
+        input_states = {"after_kw", "after_num", "after_rpar", "after_rbrace"},
         output_state = "after_dot",
         action = add_remainder
     }},
@@ -270,17 +293,20 @@ local previous_identifier = "unknown"
 ---@param theorem_info table
 ---@return string
 local function render_theorem_identifier(theorem_info)
-    local theorem_label = nil
-    if theorem_info.theorem_name ~= nil then
-        theorem_label = string.gsub(pandoc.utils.stringify(pandoc.Inlines(theorem_info.theorem_name)), "%W", "-")
+    local theorem_identifier = nil
+    if theorem_info.theorem_identifier ~= nil then
+        theorem_identifier = string.gsub(pandoc.utils.stringify(pandoc.Inlines(theorem_info.theorem_identifier)), "%W",
+            "-")
+    elseif theorem_info.theorem_name ~= nil then
+        theorem_identifier = string.gsub(pandoc.utils.stringify(pandoc.Inlines(theorem_info.theorem_name)), "%W", "-")
     elseif theorem_info.custom_counter ~= nil then
-        theorem_label = theorem_info.custom_counter
+        theorem_identifier = theorem_info.custom_counter
     elseif theorem_info.style.counter ~= nil then
-        theorem_label = string.format("%d", theorem_info.style.counter)
+        theorem_identifier = string.format("%d", theorem_info.style.counter)
     else
-        theorem_label = "for-" .. previous_identifier
+        theorem_identifier = "for-" .. previous_identifier
     end
-    previous_identifier = string.lower(string.format("%s-%s", theorem_info.style.name, theorem_label))
+    previous_identifier = string.lower(string.format("%s:%s", theorem_info.style.name, theorem_identifier))
     return previous_identifier
 end
 

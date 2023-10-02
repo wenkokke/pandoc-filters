@@ -435,6 +435,11 @@ local resolve_crossref = {
             -- Find the target for the identifier:
             local target = resolve_crossref_target(identifier)
             if target ~= nil then
+                -- Resolve the crossref type:
+                if target.type == nil then
+                    target.type = resolve_crossref_type(identifier.identifier, nil, nil)
+                end
+                -- Resolve the crossref mode:
                 local mode = resolve_crossref_mode(citation.mode)
                 if FORMAT:match('latex') then
                     local anchor = format_crossref_anchor(identifier, '')
