@@ -156,6 +156,9 @@ local theorem_header_lexer = {
     final_states = {"after_dot"}
 }
 
+---Local table for tracking theorem targets.
+local theorem_targets = {}
+
 ---Check whether a value is a Pandoc element with the given tag.
 ---
 ---@param el table
@@ -338,9 +341,15 @@ local function render_theorem(theorem_info)
     if theorem_info.remainder ~= nil then
         header:insert(pandoc.Emph(theorem_info.remainder))
     end
+    -- Identifier
+    local theorem_identifier = render_theorem_identifier(theorem_info)
+    -- Insert theorem target
+    theorem_targets[theorem_identifier] = {
+        number = theorem_info.style.counter
+    }
     -- Attr
     local blocks = pandoc.Blocks({pandoc.Para(header), table.unpack(theorem_info.body)})
-    local attr = pandoc.Attr(render_theorem_identifier(theorem_info), theorem_info.style.classes)
+    local attr = pandoc.Attr(theorem_identifier, theorem_info.style.classes)
     return pandoc.Div(blocks, attr)
 end
 
@@ -372,8 +381,9 @@ local function render_theorem_latex(theorem_info)
         header:insert(pandoc.RawInline('latex', string.format('\\begin{%s}', theorem_info.style.environment)))
         header:extend(theorem_info.remainder)
     end
-    -- Label
-    header:insert(pandoc.RawInline('latex', string.format('\\label{%s}', render_theorem_identifier(theorem_info))))
+    -- Identifier
+    local theorem_identifier = render_theorem_identifier(theorem_info)
+    header:insert(pandoc.RawInline('latex', string.format('\\label{%s}', theorem_identifier)))
     -- Footer
     footer:insert(pandoc.RawInline('latex', string.format('\\end{%s}', theorem_info.style.environment)))
     -- Custom counter
@@ -382,6 +392,10 @@ local function render_theorem_latex(theorem_info)
     end
     -- End group
     footer:insert(pandoc.RawInline('latex', '}'))
+    -- Insert theorem target
+    theorem_targets[theorem_identifier] = {
+        number = theorem_info.style.counter
+    }
     -- Blocks
     return pandoc.Blocks({pandoc.Para(header), table.unpack(theorem_info.body), pandoc.Para(footer)})
 end
@@ -402,28 +416,49 @@ local function render_theorems(theorem_info_list)
     return output
 end
 
-DefinitionList = function(el)
-    local theorem_info_list = lex_definition_list(el)
-    if theorem_info_list ~= nil then
-        return render_theorems(theorem_info_list)
-    else
-        return nil
+local function add_crossref_targets(meta)
+    if meta.crossref == nil then
+        meta.crossref = {}
     end
+    if meta.crossref.targets == nil then
+        meta.crossref.targets = {}
+    end
+    for identifier, target in pairs(theorem_targets) do
+        meta.crossref.targets[identifier] = target
+    end
+    return meta
 end
 
-Str = function(el)
-    if is_a(el, 'Str') and el.text ~= nil then
-        for theorem_style, _ in pairs(theorem_styles) do
-            local pattern = string.format('^#%s%%-(%%w*)$', string.lower(theorem_style))
-            local identifier = string.match(el.text, pattern)
-            if identifier then
-                if FORMAT:match('latex') then
-                    return pandoc.RawInline('latex', string.format('%s~\\ref{%s-%s}', theorem_style,
-                        string.lower(theorem_style), identifier))
-                else
-                    return pandoc.Link(string.format("%s %s", theorem_style, identifier), el.text)
+function Pandoc(doc)
+    doc = doc:walk({
+        DefinitionList = function(el)
+            local theorem_info_list = lex_definition_list(el)
+            if theorem_info_list ~= nil then
+                return render_theorems(theorem_info_list)
+            else
+                return nil
+            end
+        end,
+        Str = function(el)
+            if is_a(el, 'Str') and el.text ~= nil then
+                for theorem_style, _ in pairs(theorem_styles) do
+                    local pattern = string.format('^#%s%%-(%%w*)$', string.lower(theorem_style))
+                    local identifier = string.match(el.text, pattern)
+                    if identifier then
+                        if FORMAT:match('latex') then
+                            return pandoc.RawInline('latex', string.format('%s~\\ref{%s-%s}', theorem_style,
+                                string.lower(theorem_style), identifier))
+                        else
+                            return pandoc.Link(string.format("%s %s", theorem_style, identifier), el.text)
+                        end
+                    end
                 end
             end
         end
-    end
+
+    })
+    doc = doc:walk({
+        Meta = add_crossref_targets
+    })
+    return doc
 end
