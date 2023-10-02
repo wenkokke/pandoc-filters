@@ -396,6 +396,10 @@ local get_crossref_targets = {
             assert(type(crossref.format) == 'table')
             -- Retrieve the format for this cross-reference type.
             local crossref_format = resolve_crossref_format(crossref_type)
+            if crossref_format == nil then
+                log('could not find format for "' .. crossref_type.type .. '"', 'ERROR')
+                return el
+            end
             -- Increment the count for this cross-reference type.
             crossref_format.count = (crossref_format.count or 0) + 1
             -- Insert the identifier for this cross-reference target.
