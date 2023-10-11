@@ -5,6 +5,7 @@
 ---@license MIT
 ---@copyright Wen Kokke 2023
 local theorem = {}
+-- local logging = require 'logging'
 
 -- Uses `pandoc.Blocks`, which was added in Pandoc 2.17.
 PANDOC_VERSION:must_be_at_least '2.17'
@@ -348,7 +349,9 @@ local function render_theorem(theorem_info)
         number = theorem_info.style.counter
     }
     -- Attr
-    local blocks = pandoc.Blocks({pandoc.Para(header), table.unpack(theorem_info.body)})
+    local blocks = pandoc.Blocks({})
+    blocks:insert(pandoc.Para(header))
+    blocks:extend(theorem_info.body)
     local attr = pandoc.Attr(theorem_identifier, theorem_info.style.classes)
     return pandoc.Div(blocks, attr)
 end
@@ -397,7 +400,11 @@ local function render_theorem_latex(theorem_info)
         number = theorem_info.style.counter
     }
     -- Blocks
-    return pandoc.Blocks({pandoc.Para(header), table.unpack(theorem_info.body), pandoc.Para(footer)})
+    local blocks = pandoc.Blocks({})
+    blocks:insert(pandoc.Para(header))
+    blocks:extend(theorem_info.body)
+    blocks:insert(pandoc.Para(footer))
+    return blocks
 end
 
 ---Render a list of theorems as a list of Pandoc elements.
