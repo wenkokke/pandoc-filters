@@ -370,6 +370,42 @@ local function format_crossref_label(target, mode, prefix, suffix)
     return pandoc.layout.render(pandoc.template.apply(pandoc.template.compile(template), context))
 end
 
+--- Parse an identifier from a Pandoc table's caption and add it to its attributes.
+local function parse_table_identifier(el)
+    assert(type(el) == 'Block')
+    assert(el.tag == 'Table')
+    if el.caption ~= nil then
+        if el.caption.long ~= nil then
+            assert(type(el.caption.long) == 'Blocks')
+            for block_index, block in pairs(el.caption.long) do
+                assert(type(block) == 'Block')
+                if block.tag == 'Plain' then
+                    assert(block.content ~= nil)
+                    assert(type(block.content) == 'Inlines')
+                    for inline_index, inline in pairs(block.content) do
+                        if inline.tag == 'Str' then
+                            assert(inline.text ~= nil)
+                            local identifier = inline.text:match("^%{#(%S+)%}$")
+                            if identifier then
+                                el.attr.identifier = identifier
+                                -- Delete identifier from caption
+                                table.remove(el.caption.long[block_index].content, inline_index)
+                                -- Delete preceding space from caption
+                                local inline_before = el.caption.long[block_index].content[inline_index - 1]
+                                if inline_before ~= nil and inline_before.tag == 'Space' then
+                                    table.remove(el.caption.long[block_index].content, inline_index - 1)
+                                end
+                            end
+                        end
+                    end
+                else
+                    log('unexpected Block tag "' .. block.tag .. '" in table caption', 'WARNING')
+                end
+            end
+        end
+    end
+end
+
 --- Filter that gets the cross-reference configuration from the document.
 local get_crossref_configuration = {
     Meta = function(el)
@@ -388,10 +424,15 @@ local get_crossref_targets = {
         if crossref.targets == nil then
             crossref.targets = {}
         end
+        -- Tables require special treatment, as they don't have official suface syntax for attributes:
+        local is_table = el.tag == 'Table'
+        if is_table then
+            parse_table_identifier(el)
+        end
         -- If the element has an identifier:
         local is_figure = el.tag == 'Figure'
         local has_identifier = el.attr ~= nil and el.attr.identifier ~= nil and el.attr.identifier ~= ''
-        if is_figure or has_identifier then
+        if is_figure or is_table or has_identifier then
             local crossref_type = resolve_crossref_type(el.attr.identifier, el.tag, el.level)
             assert(type(crossref.format) == 'table')
             -- Retrieve the format for this cross-reference type.
@@ -414,8 +455,8 @@ local get_crossref_targets = {
                 type = crossref_type,
                 number = crossref_format.count
             }
-            -- Insert the label in the Figure caption:
-            if not FORMAT:match('latex') and is_figure then
+            -- Insert the label in the Figure or Table caption:
+            if not FORMAT:match('latex') and (is_figure or is_table) then
                 local label = format_crossref_label(target, 'intext', '', '')
                 el.caption.long:insert(1, pandoc.Plain(
                     pandoc.Inlines({pandoc.Str(label), pandoc.Str(":"), pandoc.Space()})))
