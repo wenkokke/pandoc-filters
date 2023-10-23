@@ -7,12 +7,28 @@
 -- Uses `pandoc.Blocks`, which was added in Pandoc 2.17.
 PANDOC_VERSION:must_be_at_least '2.17'
 
+-- Constants for the possible values of proof-section-location.
+local PROOF_LOCATION_INPLACE = 'inplace'
+local PROOF_LOCATION_SECTION = 'section'
+local PROOF_LOCATION_CHAPTER = 'chapter'
+local PROOF_LOCATION_PART = 'part'
+local PROOF_LOCATION_DOCUMENT = 'document'
+
+-- Configuration for filter. Can be overwritten by metadata.
 local theorem = {
     -- Use restatable environment from `thm-restate`.
-    restatable = false,
+    restatable = nil,
 
-    ---Local table for tracking theorem targets.
-    targets = {},
+    -- Specify where to render proofs. Possible values are:
+    -- * inplace  -- in-place.
+    -- * section  -- at the end of the section.
+    -- * chapter  -- at the end of the chapter.
+    -- * part     -- at the end of the part.
+    -- * document -- at the end of the section.
+    ['proof-section-location'] = PROOF_LOCATION_INPLACE,
+
+    -- Specify the title for the proof section.
+    ['proof-section-title'] = "Proofs",
 
     -- The theorem styles.
     styles = {
@@ -59,30 +75,82 @@ local theorem = {
     }
 }
 
---- Extend a table with the values from another table.
----
---- This function mutates its first argument.
----
----@param t1 table
----@param t2 table
----@return table
-local function extend(t1, t2)
-    assert(type(t1) == 'table')
-    assert(type(t2) == 'table')
-    for key, val in pairs(t2) do
-        if type(val) == 'table' then
-            if type(t1[key] or nil) == 'table' then
-                t1[key] = extend(t1[key], val)
-            else
-                t1[key] = val
-            end
+-- Cache for information tracked at runtime.
+local theorem_cache = {
+    -- String that tracks the previous statement's identifier.
+    ['previous-identifier'] = "unknown",
+
+    -- Table of cross-reference targets.
+    ['targets'] = {},
+
+    -- Table of rendered statements by identifier.
+    ['restatement-cache'] = {},
+
+    -- List of rendered proofs that have not yet been inserted.
+    ['proof-section-cache'] = {}
+}
+
+---Get the header level for proof sections.
+local function get_proof_section_level()
+    if theorem_cache['proof-section-level'] ~= nil then
+        return theorem_cache['proof-section-level']
+    end
+    local proof_section_location = theorem['proof-section-location']
+    if proof_section_location == PROOF_LOCATION_INPLACE then
+        error("Should not compute proof section level if proof-section-location == inline")
+        return nil
+    elseif proof_section_location == PROOF_LOCATION_DOCUMENT then
+        error("Should not compute proof section level if proof-section-location == document")
+        return nil
+    else
+        -- Compute the level adjustment based on the top-level division.
+        local level_adjustment = ({
+            ['top-level-part'] = 0,
+            ['top-level-chapter'] = 1,
+            ['top-level-section'] = 2,
+            ['top-level-default'] = 0
+        })[PANDOC_WRITER_OPTIONS.top_level_division]
+        -- Compute the unadjusted proof section level.
+        local proof_section_at_end_of_level = ({
+            [PROOF_LOCATION_SECTION] = 3,
+            [PROOF_LOCATION_CHAPTER] = 2,
+            [PROOF_LOCATION_PART] = 1
+        })[proof_section_location]
+        -- Return the adjusted proof section level.
+        if proof_section_at_end_of_level > level_adjustment then
+            local proof_section_level = 1 + proof_section_at_end_of_level - level_adjustment
+            theorem_cache['proof-section-level'] = proof_section_level
+            return proof_section_level
         else
-            t1[key] = val
+            local top_level_division = PANDOC_WRITER_OPTIONS.top_level_division:match('^top%-level%-(%a+)$')
+            local msg_fmt = "proof-section-location '%s' is above top-level-division '%s'"
+            error(string.format(msg_fmt, proof_section_location, top_level_division))
         end
     end
-    return t1
 end
 
+---Test whether or not theorems should be restatable.
+local function require_restatable()
+    if theorem.restatable then
+        return true
+    else
+        if theorem['proof-section-location'] == 'inplace' then
+            return false
+        else
+            if theorem.restatable == false then
+                local msg_fmt = "The value '%s' for proof-section-location requries restatable"
+                log(string.format(msg_fmt, theorem['proof-section-location']), 'WARNING')
+            end
+            return true
+        end
+    end
+end
+
+--------------------------------------------------------------------------------
+-- The lexer for theorem headers.
+--------------------------------------------------------------------------------
+
+-- Lexer action that sets the theorem style.
 local function set_theorem_style(info, value)
     if type(value) == "string" then
         if theorem.styles[value] ~= nil then
@@ -93,15 +161,17 @@ local function set_theorem_style(info, value)
                 info.style[key] = value
             end
         else
-            error("Unsupported theorem style '" .. value .. "'")
+            log("Unsupported theorem style '" .. value .. "'", 'ERROR')
         end
     end
 end
 
+-- Lexer action that sets a custom counter.
 local function set_custom_counter(result, value)
     result.custom_counter = value
 end
 
+-- Lexer action that adds the theorem name.
 local function add_theorem_name(result, value)
     if result.theorem_name == nil then
         result.theorem_name = {}
@@ -115,6 +185,7 @@ local function add_theorem_name(result, value)
     end
 end
 
+-- Lexer action that adds a theorem identifier.
 local function add_theorem_identifier(result, value)
     if result.theorem_identifier == nil then
         result.theorem_identifier = {}
@@ -128,16 +199,17 @@ local function add_theorem_identifier(result, value)
     end
 end
 
-local function add_remainder(result, value)
-    if result.remainder == nil then
-        result.remainder = {}
+-- Lexer action that adds miscellaneous text.
+local function add_miscellaneous(result, value)
+    if result.miscellaneous == nil then
+        result.miscellaneous = {}
     end
     if type(value) == "string" then
         if value ~= "" then
-            table.insert(result.remainder, pandoc.Str(value))
+            table.insert(result.miscellaneous, pandoc.Str(value))
         end
     else
-        table.insert(result.remainder, value)
+        table.insert(result.miscellaneous, value)
     end
 end
 
@@ -176,38 +248,15 @@ local theorem_header_lexer = {
         match = "%.(.*)",
         input_states = {"after_kw", "after_num", "after_rpar", "after_rbrace"},
         output_state = "after_dot",
-        action = add_remainder
+        action = add_miscellaneous
     }},
     otherwise = {
         after_lpar = add_theorem_name,
-        after_dot = add_remainder
+        after_dot = add_miscellaneous
     },
     start_state = "start",
     final_states = {"after_dot"}
 }
-
----Check whether a value is a Pandoc element with the given tag.
----
----@param el table
----@param t string
----@return boolean
-local function is_a(el, t)
-    return el ~= nil and el.tag == t
-end
-
----Check whether a table includes a given element.
----
----@param list table
----@param value string
----@return boolean
-local function table_includes(list, value)
-    for _, item in pairs(list) do
-        if item == value then
-            return true
-        end
-    end
-    return false
-end
 
 ---Run a lexer on a list of Pandoc elements.
 ---
@@ -223,18 +272,18 @@ local function run_lexer(lexer, els)
     index = index + 1
     el = els[index]
     ::continue::
-    -- io.stderr:write(string.format("%d [%s] %s\n", index, state, el))
     if el == nil then
         -- We have reached the end of the input:
-        if table_includes(lexer.final_states, state) then
+        if pandoc.List.includes(lexer.final_states, state) then
             return result
         else
-            error(string.format("Lexer ended in non-final state '%s'", state))
+            local msg_fmt = "Lexer ended in non-final state '%s'"
+            log(string.format(msg_fmt, state), 'ERROR')
         end
-    elseif is_a(el, 'Str') then
+    elseif el ~= nil and el.tag == 'Str' then
         -- Try every lexer rule, in order:
         for _, rule in pairs(lexer.if_Str) do
-            if table_includes(rule.input_states, state) then
+            if pandoc.List.includes(rule.input_states, state) then
                 local value, rest = el.text:match("^" .. rule.match .. "(.*)$")
                 if value ~= nil then
                     state = rule.output_state
@@ -254,12 +303,37 @@ local function run_lexer(lexer, els)
         lexer.otherwise[state](result, el)
         goto next
     end
-    if is_a(el, 'Space') then
+    if el ~= nil and el.tag == 'Space' then
         -- Skip any spaces that don't have a default action:
         goto next
     end
     -- Throw a lexical error:
-    error(string.format("Lexical error at token '%s' in state '%s'", el, state))
+    local msg_fmt = "Lexical error at token '%s' in state '%s'"
+    log(string.format(msg_fmt, el, state), 'ERROR')
+end
+
+---Render the identifier for a theorem.
+---
+---@param theorem_info table
+---@return string
+local function render_theorem_identifier(theorem_info)
+    local theorem_identifier = nil
+    if theorem_info.theorem_identifier ~= nil then
+        theorem_identifier = pandoc.utils.stringify(pandoc.Inlines(theorem_info.theorem_identifier))
+    elseif theorem_info.theorem_name ~= nil then
+        theorem_identifier = pandoc.utils.stringify(pandoc.Inlines(theorem_info.theorem_name))
+    elseif theorem_info.custom_counter ~= nil then
+        theorem_identifier = theorem_info.custom_counter
+    elseif theorem_info.style.counter ~= nil then
+        theorem_identifier = tostring(theorem_info.style.counter)
+    else
+        theorem_identifier = "for-" .. theorem_info['previous-identifier']
+    end
+    -- Sanitize identifier (replace non-alphanumeric characters with dashes)
+    theorem_identifier = string.gsub(theorem_identifier, "%W", "-")
+    -- Add the theorem style name as a prefix
+    theorem_identifier = string.lower(string.format("%s:%s", theorem_info.style.name, theorem_identifier))
+    return theorem_identifier
 end
 
 -- Lex a definition list item containing a theorem.
@@ -268,21 +342,26 @@ end
 ---@param body table
 ---@return table
 local function lex_definition_list_item(head, body)
-    local success, result = pcall(function()
+    local success, theorem_info = pcall(function()
         return run_lexer(theorem_header_lexer, head)
     end)
     if success then
         assert(#body == 1, "Unexpected number of elements '" .. #body .. "'")
-        result.body = body[1]
-        if result.custom_counter == nil then
-            local theorem_style = theorem.styles[result.style.name]
+        theorem_info.body = body[1]
+        if theorem_info.custom_counter == nil then
+            local theorem_style = theorem.styles[theorem_info.style.name]
             if theorem_style.counter ~= nil then
                 theorem_style.counter = theorem_style.counter + 1
             end
         end
-        return result
+        -- Render the theorem identifier
+        theorem_info['previous-identifier'] = theorem_cache['previous-identifier']
+        theorem_info.identifier = render_theorem_identifier(theorem_info)
+        -- Update the global previous theorem identifier
+        theorem_cache['previous-identifier'] = theorem_info.identifier
+        return theorem_info
     else
-        io.stderr:write(string.format("Warning: %s\n", result))
+        log(tostring(theorem_info), 'WARNING')
         return nil
     end
 end
@@ -293,7 +372,8 @@ end
 ---@param body table
 ---@return table
 local function lex_definition_list(el)
-    if is_a(el, 'DefinitionList') and el.content ~= nil then
+    if el ~= nil and el.tag == 'DefinitionList' then
+        assert(el.content ~= nil)
         local result_list = pandoc.List({})
         for index = 1, #el.content do
             local success, result_or_error = pcall(lex_definition_list_item, table.unpack(el.content[index]))
@@ -302,7 +382,8 @@ local function lex_definition_list(el)
             else
                 -- If result_list is non-empty, throw an error:
                 if index > 1 then
-                    error(string.format('item %s in definition list is not a theorem: %s\n', index, result_or_error))
+                    local msg_fmt = 'item %s in definition list is not a theorem: %s\n'
+                    log(string.format(msg_fmt, index, result_or_error), 'ERROR')
                 else
                     return nil
                 end
@@ -315,40 +396,19 @@ local function lex_definition_list(el)
     return nil
 end
 
----Store the previously rendered identifier.
-local previous_identifier = "unknown"
-
----Render the identifier for a theorem.
----
----@param theorem_info table
----@return string
-local function render_theorem_identifier(theorem_info)
-    local theorem_identifier = nil
-    if theorem_info.theorem_identifier ~= nil then
-        theorem_identifier = string.gsub(pandoc.utils.stringify(pandoc.Inlines(theorem_info.theorem_identifier)), "%W",
-            "-")
-    elseif theorem_info.theorem_name ~= nil then
-        theorem_identifier = string.gsub(pandoc.utils.stringify(pandoc.Inlines(theorem_info.theorem_name)), "%W", "-")
-    elseif theorem_info.custom_counter ~= nil then
-        theorem_identifier = theorem_info.custom_counter
-    elseif theorem_info.style.counter ~= nil then
-        theorem_identifier = string.format("%d", theorem_info.style.counter)
-    else
-        theorem_identifier = "for-" .. previous_identifier
-    end
-    previous_identifier = string.lower(string.format("%s:%s", theorem_info.style.name, theorem_identifier))
-    return previous_identifier
-end
+--------------------------------------------------------------------------------
+-- The renderer for theorems.
+--------------------------------------------------------------------------------
 
 ---Render a theorem as a Pandoc element.
 ---
 ---@param theorem_info table
 ---@return table
-local function render_theorem(theorem_info)
-    -- Header
+local function render_theorem_other(theorem_info)
+    -- Render theorem
     local strong = pandoc.Inlines({})
     strong:insert(pandoc.Str(theorem_info.style.name))
-    -- Add counter
+    -- Render counter
     if theorem_info.custom_counter ~= nil then
         strong:insert(pandoc.Space())
         strong:insert(pandoc.Str(theorem_info.custom_counter))
@@ -356,9 +416,7 @@ local function render_theorem(theorem_info)
         strong:insert(pandoc.Space())
         strong:insert(pandoc.Str(string.format("%d", theorem_info.style.counter)))
     end
-    -- Identifier
-    local theorem_identifier = render_theorem_identifier(theorem_info)
-    -- Header
+    -- Render header
     local header = pandoc.Inlines({})
     header:insert(pandoc.Strong(strong))
     if theorem_info.theorem_name ~= nil then
@@ -368,19 +426,22 @@ local function render_theorem(theorem_info)
         header:insert(pandoc.Str(')'))
     end
     header:insert(pandoc.Str('.'))
-    if theorem_info.remainder ~= nil then
-        header:insert(pandoc.Emph(theorem_info.remainder))
+    if theorem_info.miscellaneous ~= nil then
+        header:insert(pandoc.Emph(theorem_info.miscellaneous))
     end
-    -- Add target for theorem
-    theorem.targets[theorem_identifier] = {
-        number = theorem_info.style.counter
-    }
-    -- Set attributes
-    local blocks = pandoc.Blocks({})
-    blocks:insert(pandoc.Para(header))
-    blocks:extend(theorem_info.body)
-    local attr = pandoc.Attr(theorem_identifier, theorem_info.style.classes)
-    return pandoc.Div(blocks, attr)
+    -- Render theorem content
+    local content = pandoc.Blocks({})
+    content:insert(pandoc.Para(header))
+    content:extend(theorem_info.body)
+    -- Render theorem statement
+    local statement = pandoc.Blocks({})
+    statement:insert(pandoc.Div(content, pandoc.Attr(theorem_info.identifier, theorem_info.style.classes)))
+    theorem_info.statement = statement
+    -- Render theorem restatement
+    if require_restatable() then
+        theorem_info.restatement = statement
+    end
+    return theorem_info
 end
 
 ---Render a theorem as a Pandoc element for LaTeX.
@@ -388,137 +449,241 @@ end
 ---@param theorem_info table
 ---@return table
 local function render_theorem_latex(theorem_info)
+    -- Render theorem
     local header = pandoc.Inlines({})
     local footer = pandoc.Inlines({})
-    -- Start group
+    -- Render header
     header:insert(pandoc.RawInline('latex', '{'))
-    -- Custom Counter
+    -- Set custom counter
     if theorem_info.custom_counter ~= nil then
         header:insert(pandoc.RawInline('latex', string.format('\\renewcommand{\\the%s}{%s}',
             theorem_info.style.environment, theorem_info.custom_counter)))
     end
-    -- Identifier
-    local theorem_identifier = render_theorem_identifier(theorem_info)
-    -- Header
-    if theorem_info.theorem_name ~= nil then
-        assert(type(theorem_info.theorem_name) == "table")
-        if theorem.restatable == true then
+    if require_restatable() then
+        -- Render theorem command
+        local theorem_command_name = theorem_info.identifier:gsub("%A", "")
+        -- Render theorem statement
+        if theorem_info.theorem_name ~= nil then
+            assert(type(theorem_info.theorem_name) == "table")
             header:insert(pandoc.RawInline('latex', '\\begin{restatable}['))
             header:extend(theorem_info.theorem_name)
             header:insert(pandoc.RawInline('latex', string.format(']{%s}{%s}', theorem_info.style.environment,
-                theorem_identifier)))
+                theorem_command_name)))
         else
+            header:insert(pandoc.RawInline('latex', string.format('\\begin{restatable}{%s}{%s}',
+                theorem_info.style.environment, theorem_command_name)))
+        end
+        -- Render theorem restatement
+        local raw_latex_command = pandoc.RawInline('latex', string.format('\\%s*', theorem_command_name))
+        theorem_info.restatement = pandoc.Blocks({pandoc.Inlines({raw_latex_command})})
+    else
+        -- Render theorem statement
+        if theorem_info.theorem_name ~= nil then
+            assert(type(theorem_info.theorem_name) == "table")
             header:insert(pandoc.RawInline('latex', string.format('\\begin{%s}[', theorem_info.style.environment)))
             header:extend(theorem_info.theorem_name)
             header:insert(pandoc.RawInline('latex', ']'))
-        end
-    else
-        if theorem.restatable == true then
-            header:insert(pandoc.RawInline('latex', string.format('\\begin{restatable}{%s}{%s}',
-                theorem_info.style.environment, theorem_identifier)))
         else
             header:insert(pandoc.RawInline('latex', string.format('\\begin{%s}', theorem_info.style.environment)))
         end
     end
-    if theorem_info.remainder ~= nil then
-        assert(type(theorem_info.remainder) == "table")
-        header:extend(theorem_info.remainder)
+    -- Add miscellaneous text to header
+    if theorem_info.miscellaneous ~= nil then
+        assert(type(theorem_info.miscellaneous) == "table")
+        header:extend(theorem_info.miscellaneous)
     end
-    -- Insert `\label`
-    header:insert(pandoc.RawInline('latex', string.format('\\label{%s}', theorem_identifier)))
-    -- Footer
-    if theorem.restatable == true then
+    -- Add LaTeX cross-reference label to header
+    header:insert(pandoc.RawInline('latex', string.format('\\label{%s}', theorem_info.identifier)))
+    -- Render footer start
+    if require_restatable() then
         footer:insert(pandoc.RawInline('latex', '\\end{restatable}'))
     else
         footer:insert(pandoc.RawInline('latex', string.format('\\end{%s}', theorem_info.style.environment)))
     end
-    -- Custom counter
+    -- Restore custom counter
     if theorem_info.custom_counter ~= nil then
         footer:insert(pandoc.RawInline('latex', string.format('\\addtocounter{%s}{-1}', theorem_info.style.environment)))
     end
-    -- End group
+    -- Render footer end
     footer:insert(pandoc.RawInline('latex', '}'))
-    -- Insert theorem target
-    theorem.targets[theorem_identifier] = {
+    -- Render theorem restatement
+    local statement = pandoc.Blocks({})
+    statement:insert(pandoc.Para(header))
+    statement:extend(theorem_info.body)
+    statement:insert(pandoc.Para(footer))
+    theorem_info.statement = statement
+    return theorem_info
+end
+
+--- Register a cross-reference target for theorem.
+local function register_theorem_target(theorem_info)
+    theorem_cache['targets'][theorem_info.identifier] = {
         number = theorem_info.style.counter
     }
-    -- Blocks
-    local blocks = pandoc.Blocks({})
-    blocks:insert(pandoc.Para(header))
-    blocks:extend(theorem_info.body)
-    blocks:insert(pandoc.Para(footer))
-    return blocks
 end
 
----Render a list of theorems as a list of Pandoc elements.
+---Render a theorem.
 ---
----@param theorem_info_list table
+---@param theorem_info table
 ---@return table
-local function render_theorems(theorem_info_list)
-    local output = pandoc.Blocks({})
-    for index = 1, #theorem_info_list do
-        if FORMAT:match('latex') then
-            output:extend(render_theorem_latex(theorem_info_list[index]))
+local function render_theorem(theorem_info)
+    register_theorem_target(theorem_info)
+    if FORMAT:match('latex') then
+        return render_theorem_latex(theorem_info)
+    else
+        return render_theorem_other(theorem_info)
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Filter that reads the options from the metadata.
+--------------------------------------------------------------------------------
+
+--- Extend a table with the values from another table.
+---
+--- This function mutates its first argument.
+---
+---@param t1 table
+---@param t2 table
+---@return table
+local function table_merge(t1, t2)
+    assert(type(t1) == 'table')
+    assert(type(t2) == 'table')
+    for key, val in pairs(t2) do
+        if type(val) == 'table' then
+            if type(t1[key] or nil) == 'table' then
+                t1[key] = table_merge(t1[key], val)
+            else
+                t1[key] = val
+            end
         else
-            output:insert(render_theorem(theorem_info_list[index]))
+            t1[key] = val
         end
     end
-    return output
+    return t1
 end
 
--- Add targets for the `crossref` filter.
-local function add_crossref_targets(meta)
-    if meta.crossref == nil then
-        meta.crossref = {}
-    end
-    if meta.crossref.targets == nil then
-        meta.crossref.targets = {}
-    end
-    for identifier, target in pairs(theorem.targets) do
-        meta.crossref.targets[identifier] = target
-    end
-    return meta
-end
-
-function Pandoc(doc)
-    doc:walk({
-        Meta = function(el)
-            for key, value in pairs(el) do
-                if key == 'theorem' then
-                    extend(theorem, value)
-                end
+local get_options = {
+    Meta = function(el)
+        for key, value in pairs(el) do
+            if key == 'theorem' then
+                table_merge(theorem, value)
             end
         end
-    })
+    end
+}
+
+--------------------------------------------------------------------------------
+-- Filter that renders the theorems as Pandoc elements.
+--------------------------------------------------------------------------------
+
+local function render_proof_section_header()
+    return pandoc.Header(get_proof_section_level(), theorem['proof-section-title'])
+end
+
+local function require_proof_section()
+    local proof_section_cache = theorem_cache['proof-section-cache']
+    return #proof_section_cache > 0
+end
+
+local function reset_proof_section_cache()
+    theorem_cache['proof-section-cache'] = {}
+end
+
+local function render_theorems(doc)
     doc = doc:walk({
         DefinitionList = function(el)
             local theorem_info_list = lex_definition_list(el)
             if theorem_info_list ~= nil then
-                return render_theorems(theorem_info_list)
+                local output = pandoc.Blocks({})
+                for theorem_index, theorem_info in pairs(theorem_info_list) do
+                    render_theorem(theorem_info)
+                    --- Determine whether an item is a proof.
+                    if theorem_info.style.name ~= "Proof" then
+                        -- Statements are rendered in-place
+                        output:extend(theorem_info.statement)
+                        if theorem['proof-section-location'] ~= PROOF_LOCATION_INPLACE then
+                            -- Add the statement to the restatement cache
+                            theorem_cache['restatement-cache'][theorem_info.identifier] = theorem_info.restatement
+                        end
+                    else
+                        -- Proofs follow the proof-section-location option
+                        if theorem['proof-section-location'] == PROOF_LOCATION_INPLACE then
+                            output:extend(theorem_info.statement)
+                        else
+                            -- Get the corresponding statement from the cache
+                            local restatement = theorem_cache['restatement-cache'][theorem_info['previous-identifier']]
+                            assert(restatement ~= nil)
+                            local restatement_and_proof = pandoc.Blocks({})
+                            restatement_and_proof:extend(restatement)
+                            restatement_and_proof:extend(theorem_info.statement)
+                            table.insert(theorem_cache['proof-section-cache'], restatement_and_proof)
+                        end
+                    end
+                end
+                return output
             else
                 return nil
             end
         end,
-        Str = function(el)
-            if is_a(el, 'Str') and el.text ~= nil then
-                for theorem_style, _ in pairs(theorem.styles) do
-                    local pattern = string.format('^#%s%%-(%%w*)$', string.lower(theorem_style))
-                    local identifier = string.match(el.text, pattern)
-                    if identifier then
-                        if FORMAT:match('latex') then
-                            return pandoc.RawInline('latex', string.format('%s~\\ref{%s-%s}', theorem_style,
-                                string.lower(theorem_style), identifier))
-                        else
-                            return pandoc.Link(string.format("%s %s", theorem_style, identifier), el.text)
-                        end
-                    end
-                end
+        Header = function(el)
+            local proof_section_location = theorem['proof-section-location']
+            if proof_section_location == PROOF_LOCATION_INPLACE then
+                return nil
             end
+            if proof_section_location == PROOF_LOCATION_DOCUMENT then
+                return nil
+            end
+            local proof_section_level = get_proof_section_level()
+            if proof_section_level <= el.level then
+                return nil
+            end
+            if not require_proof_section() then
+                return nil
+            end
+            local output = pandoc.Blocks({})
+            output:insert(render_proof_section_header())
+            for _, restatement_and_proof in pairs(theorem_cache['proof-section-cache']) do
+                output:extend(restatement_and_proof)
+            end
+            output:insert(el)
+            reset_proof_section_cache()
+            return output
+        end,
+        traversal = "topdown"
+    })
+    if require_proof_section() then
+        doc.blocks:insert(render_proof_section_header())
+        for _, restatement_and_proof in pairs(theorem_cache['proof-section-cache']) do
+            doc.blocks:extend(restatement_and_proof)
         end
+        reset_proof_section_cache()
+    end
+    return doc
+end
 
-    })
-    doc = doc:walk({
-        Meta = add_crossref_targets
-    })
+--------------------------------------------------------------------------------
+-- Filter that adds targets for the cross-reference filter.
+--------------------------------------------------------------------------------
+
+local save_theorem_targets = {
+    Meta = function(meta)
+        if meta.crossref == nil then
+            meta.crossref = {}
+        end
+        if meta.crossref.targets == nil then
+            meta.crossref.targets = {}
+        end
+        for identifier, target in pairs(theorem_cache['targets']) do
+            meta.crossref.targets[identifier] = target
+        end
+        return meta
+    end
+}
+
+function Pandoc(doc)
+    doc:walk(get_options)
+    doc = render_theorems(doc)
+    doc = doc:walk(save_theorem_targets)
     return doc
 end
