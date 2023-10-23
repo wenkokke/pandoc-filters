@@ -4,63 +4,92 @@
 ---@author Wen Kokke
 ---@license MIT
 ---@copyright Wen Kokke 2023
-local theorem = {}
--- local logging = require 'logging'
-
 -- Uses `pandoc.Blocks`, which was added in Pandoc 2.17.
 PANDOC_VERSION:must_be_at_least '2.17'
 
--- The theorem styles.
-local theorem_styles = {
-    Definition = {
-        classes = {'definition'},
-        counter = 1,
-        environment = 'definition'
-    },
-    Lemma = {
-        classes = {'lemma'},
-        counter = 1,
-        environment = 'lemma'
-    },
-    Theorem = {
-        classes = {'theorem'},
-        counter = 1,
-        environment = 'theorem'
-    },
-    Proof = {
-        classes = {'proof'},
-        counter = nil,
-        environment = 'proof'
-    },
-    Claim = {
-        classes = {'claim'},
-        counter = 1,
-        environment = 'claim'
-    },
-    Remark = {
-        classes = {'remark'},
-        counter = 1,
-        environment = 'remark'
-    },
-    Example = {
-        classes = {'example'},
-        counter = 1,
-        environment = 'example'
-    },
-    Assumption = {
-        classes = {'assumption'},
-        counter = 1,
-        environment = 'assumption'
+local theorem = {
+    -- Use restatable environment from `thm-restate`.
+    restatable = false,
+
+    ---Local table for tracking theorem targets.
+    targets = {},
+
+    -- The theorem styles.
+    styles = {
+        Definition = {
+            classes = {'definition'},
+            counter = 1,
+            environment = 'definition'
+        },
+        Lemma = {
+            classes = {'lemma'},
+            counter = 1,
+            environment = 'lemma'
+        },
+        Theorem = {
+            classes = {'theorem'},
+            counter = 1,
+            environment = 'theorem'
+        },
+        Proof = {
+            classes = {'proof'},
+            counter = nil,
+            environment = 'proof'
+        },
+        Claim = {
+            classes = {'claim'},
+            counter = 1,
+            environment = 'claim'
+        },
+        Remark = {
+            classes = {'remark'},
+            counter = 1,
+            environment = 'remark'
+        },
+        Example = {
+            classes = {'example'},
+            counter = 1,
+            environment = 'example'
+        },
+        Assumption = {
+            classes = {'assumption'},
+            counter = 1,
+            environment = 'assumption'
+        }
     }
 }
 
+--- Extend a table with the values from another table.
+---
+--- This function mutates its first argument.
+---
+---@param t1 table
+---@param t2 table
+---@return table
+local function extend(t1, t2)
+    assert(type(t1) == 'table')
+    assert(type(t2) == 'table')
+    for key, val in pairs(t2) do
+        if type(val) == 'table' then
+            if type(t1[key] or nil) == 'table' then
+                t1[key] = extend(t1[key], val)
+            else
+                t1[key] = val
+            end
+        else
+            t1[key] = val
+        end
+    end
+    return t1
+end
+
 local function set_theorem_style(info, value)
     if type(value) == "string" then
-        if theorem_styles[value] ~= nil then
+        if theorem.styles[value] ~= nil then
             info.style = {
                 name = value
             }
-            for key, value in pairs(theorem_styles[value]) do
+            for key, value in pairs(theorem.styles[value]) do
                 info.style[key] = value
             end
         else
@@ -157,9 +186,6 @@ local theorem_header_lexer = {
     final_states = {"after_dot"}
 }
 
----Local table for tracking theorem targets.
-local theorem_targets = {}
-
 ---Check whether a value is a Pandoc element with the given tag.
 ---
 ---@param el table
@@ -249,7 +275,7 @@ local function lex_definition_list_item(head, body)
         assert(#body == 1, "Unexpected number of elements '" .. #body .. "'")
         result.body = body[1]
         if result.custom_counter == nil then
-            local theorem_style = theorem_styles[result.style.name]
+            local theorem_style = theorem.styles[result.style.name]
             if theorem_style.counter ~= nil then
                 theorem_style.counter = theorem_style.counter + 1
             end
@@ -330,6 +356,9 @@ local function render_theorem(theorem_info)
         strong:insert(pandoc.Space())
         strong:insert(pandoc.Str(string.format("%d", theorem_info.style.counter)))
     end
+    -- Identifier
+    local theorem_identifier = render_theorem_identifier(theorem_info)
+    -- Header
     local header = pandoc.Inlines({})
     header:insert(pandoc.Strong(strong))
     if theorem_info.theorem_name ~= nil then
@@ -342,13 +371,11 @@ local function render_theorem(theorem_info)
     if theorem_info.remainder ~= nil then
         header:insert(pandoc.Emph(theorem_info.remainder))
     end
-    -- Identifier
-    local theorem_identifier = render_theorem_identifier(theorem_info)
-    -- Insert theorem target
-    theorem_targets[theorem_identifier] = {
+    -- Add target for theorem
+    theorem.targets[theorem_identifier] = {
         number = theorem_info.style.counter
     }
-    -- Attr
+    -- Set attributes
     local blocks = pandoc.Blocks({})
     blocks:insert(pandoc.Para(header))
     blocks:extend(theorem_info.body)
@@ -370,25 +397,41 @@ local function render_theorem_latex(theorem_info)
         header:insert(pandoc.RawInline('latex', string.format('\\renewcommand{\\the%s}{%s}',
             theorem_info.style.environment, theorem_info.custom_counter)))
     end
+    -- Identifier
+    local theorem_identifier = render_theorem_identifier(theorem_info)
     -- Header
     if theorem_info.theorem_name ~= nil then
         assert(type(theorem_info.theorem_name) == "table")
-        header:insert(pandoc.RawInline('latex', string.format('\\begin{%s}[', theorem_info.style.environment)))
-        header:extend(theorem_info.theorem_name)
-        header:insert(pandoc.RawInline('latex', ']'))
-        if theorem_info.remainder ~= nil then
-            assert(type(theorem_info.remainder) == "table")
-            header:extend(theorem_info.remainder)
+        if theorem.restatable == true then
+            header:insert(pandoc.RawInline('latex', '\\begin{restatable}['))
+            header:extend(theorem_info.theorem_name)
+            header:insert(pandoc.RawInline('latex', string.format(']{%s}{%s}', theorem_info.style.environment,
+                theorem_identifier)))
+        else
+            header:insert(pandoc.RawInline('latex', string.format('\\begin{%s}[', theorem_info.style.environment)))
+            header:extend(theorem_info.theorem_name)
+            header:insert(pandoc.RawInline('latex', ']'))
         end
     else
-        header:insert(pandoc.RawInline('latex', string.format('\\begin{%s}', theorem_info.style.environment)))
+        if theorem.restatable == true then
+            header:insert(pandoc.RawInline('latex', string.format('\\begin{restatable}{%s}{%s}',
+                theorem_info.style.environment, theorem_identifier)))
+        else
+            header:insert(pandoc.RawInline('latex', string.format('\\begin{%s}', theorem_info.style.environment)))
+        end
+    end
+    if theorem_info.remainder ~= nil then
+        assert(type(theorem_info.remainder) == "table")
         header:extend(theorem_info.remainder)
     end
-    -- Identifier
-    local theorem_identifier = render_theorem_identifier(theorem_info)
+    -- Insert `\label`
     header:insert(pandoc.RawInline('latex', string.format('\\label{%s}', theorem_identifier)))
     -- Footer
-    footer:insert(pandoc.RawInline('latex', string.format('\\end{%s}', theorem_info.style.environment)))
+    if theorem.restatable == true then
+        footer:insert(pandoc.RawInline('latex', '\\end{restatable}'))
+    else
+        footer:insert(pandoc.RawInline('latex', string.format('\\end{%s}', theorem_info.style.environment)))
+    end
     -- Custom counter
     if theorem_info.custom_counter ~= nil then
         footer:insert(pandoc.RawInline('latex', string.format('\\addtocounter{%s}{-1}', theorem_info.style.environment)))
@@ -396,7 +439,7 @@ local function render_theorem_latex(theorem_info)
     -- End group
     footer:insert(pandoc.RawInline('latex', '}'))
     -- Insert theorem target
-    theorem_targets[theorem_identifier] = {
+    theorem.targets[theorem_identifier] = {
         number = theorem_info.style.counter
     }
     -- Blocks
@@ -423,6 +466,7 @@ local function render_theorems(theorem_info_list)
     return output
 end
 
+-- Add targets for the `crossref` filter.
 local function add_crossref_targets(meta)
     if meta.crossref == nil then
         meta.crossref = {}
@@ -430,13 +474,22 @@ local function add_crossref_targets(meta)
     if meta.crossref.targets == nil then
         meta.crossref.targets = {}
     end
-    for identifier, target in pairs(theorem_targets) do
+    for identifier, target in pairs(theorem.targets) do
         meta.crossref.targets[identifier] = target
     end
     return meta
 end
 
 function Pandoc(doc)
+    doc:walk({
+        Meta = function(el)
+            for key, value in pairs(el) do
+                if key == 'theorem' then
+                    extend(theorem, value)
+                end
+            end
+        end
+    })
     doc = doc:walk({
         DefinitionList = function(el)
             local theorem_info_list = lex_definition_list(el)
@@ -448,7 +501,7 @@ function Pandoc(doc)
         end,
         Str = function(el)
             if is_a(el, 'Str') and el.text ~= nil then
-                for theorem_style, _ in pairs(theorem_styles) do
+                for theorem_style, _ in pairs(theorem.styles) do
                     local pattern = string.format('^#%s%%-(%%w*)$', string.lower(theorem_style))
                     local identifier = string.match(el.text, pattern)
                     if identifier then
