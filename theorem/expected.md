@@ -1,6 +1,6 @@
 # The *Pirate ipsum* Theorem
 
-::: {#lemma-1 .lemma}
+::: {#lemma:1 .lemma}
 **Lemma 1**.
 
 Chase guns doubloon crimp rutters barkadeer gunwalls weigh anchor Plate
@@ -10,14 +10,14 @@ coffer topmast topsail jib lookout topgallant dance the hempen jig
 interloper.
 :::
 
-::: {#lemma-2 .lemma}
+::: {#lemma:2 .lemma}
 **Lemma 2**.
 
 Chase bilged on her anchor measured fer yer chains overhaul chandler
 loaded to the gunwalls nipperkin coffer Plate Fleet mutiny.
 :::
 
-::: {#theorem-pirate-ipsum .theorem}
+::: {#theorem:pirate-ipsum .theorem}
 **Theorem 1** (Pirate ipsum).
 
 Cog pinnace broadside crack Jennys tea cup scourge of the seven seas
@@ -27,7 +27,7 @@ pounders gun bilge rat lookout code of conduct pillage.
 
 # The variant by Benjamin Hornigold
 
-::: {#theorem-pirate-ipsum-by-hornigold--1680- .theorem}
+::: {#theorem:pirate-ipsum-by-hornigold--1680- .theorem}
 **Theorem 3.1.5** (Pirate ipsum by @BenjaminHornigold).
 
 Crow's nest marooned Yellow Jack cutlass code of conduct rope's end
