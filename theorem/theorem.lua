@@ -32,45 +32,55 @@ local theorem = {
 
     -- The theorem styles.
     styles = {
-        Definition = {
-            classes = {'definition'},
+        Assumption = {
+            classes = {'assumption'},
             counter = 1,
-            environment = 'definition'
-        },
-        Lemma = {
-            classes = {'lemma'},
-            counter = 1,
-            environment = 'lemma'
-        },
-        Theorem = {
-            classes = {'theorem'},
-            counter = 1,
-            environment = 'theorem'
-        },
-        Proof = {
-            classes = {'proof'},
-            counter = nil,
-            environment = 'proof'
+            environment = 'assumption'
         },
         Claim = {
             classes = {'claim'},
             counter = 1,
             environment = 'claim'
         },
-        Remark = {
-            classes = {'remark'},
+        Corollary = {
+            classes = {'corollary'},
             counter = 1,
-            environment = 'remark'
+            environment = 'corollary'
+        },
+        Definition = {
+            classes = {'definition'},
+            counter = 1,
+            environment = 'definition'
         },
         Example = {
             classes = {'example'},
             counter = 1,
             environment = 'example'
         },
-        Assumption = {
-            classes = {'assumption'},
+        Lemma = {
+            classes = {'lemma'},
             counter = 1,
-            environment = 'assumption'
+            environment = 'lemma'
+        },
+        Proof = {
+            classes = {'proof'},
+            counter = nil,
+            environment = 'proof'
+        },
+        Proposition = {
+            classes = {'proposition'},
+            counter = 1,
+            environment = 'proposition'
+        },
+        Remark = {
+            classes = {'remark'},
+            counter = 1,
+            environment = 'remark'
+        },
+        Theorem = {
+            classes = {'theorem'},
+            counter = 1,
+            environment = 'theorem'
         }
     }
 }
