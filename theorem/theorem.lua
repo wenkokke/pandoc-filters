@@ -29,6 +29,22 @@ local theorem = {
         -- * chapter  -- at the end of the chapter.
         -- * part     -- at the end of the part.
         -- * document -- at the end of the section.
+        -- These be specified either all-at-once...
+        --
+        --  ```yaml
+        --  location: "section"
+        --  ```
+        --
+        -- ...or separately for by using proof tags, e.g., the following
+        -- specifies the tags @here and @omit to keep the proof in-place
+        -- and move it to the proof section, respectively...
+        --
+        --  ```yaml
+        --  location:
+        --    here: "inplace"
+        --    omit: "section"
+        --    default: "section"
+        --  ```
         location = nil
     },
 
