@@ -19,16 +19,18 @@ local theorem = {
     -- Use restatable environment from `thm-restate`.
     restatable = nil,
 
-    -- Specify where to render proofs. Possible values are:
-    -- * inplace  -- in-place.
-    -- * section  -- at the end of the section.
-    -- * chapter  -- at the end of the chapter.
-    -- * part     -- at the end of the part.
-    -- * document -- at the end of the section.
-    ['proof-section-location'] = PROOF_LOCATION_INPLACE,
-
-    -- Specify the title for the proof section.
-    ['proof-section-title'] = "Proofs",
+    -- Specify the options for the proof section.
+    ['proof-section'] = {
+        -- Specify the title for the proof section.
+        title = "Omitted Proofs",
+        -- Specify where to render proofs. Possible values are:
+        -- * inplace  -- in-place (default).
+        -- * section  -- at the end of the section.
+        -- * chapter  -- at the end of the chapter.
+        -- * part     -- at the end of the part.
+        -- * document -- at the end of the section.
+        location = nil
+    },
 
     -- The theorem styles.
     styles = {
@@ -100,17 +102,94 @@ local theorem_cache = {
     ['proof-section-cache'] = {}
 }
 
----Get the header level for proof sections.
+--- Get the proof section location.
+local function get_proof_location(tag)
+    local proof_section = theorem['proof-section']
+    if type(proof_section) == 'table' then
+        if type(proof_section.location) == 'string' then
+            return proof_section.location
+        elseif type(proof_section.location) == 'table' then
+            if tag ~= nil then
+                assert(type(tag) == 'string')
+                if proof_section.location[tag] ~= nil then
+                    return proof_section.location[tag]
+                else
+                    local msg_fmt = "proof location for tag '%s' is not defined"
+                    error(string.format(msg_fmt, tag))
+                end
+            elseif proof_section.location.default ~= nil then
+                return proof_section.location.default
+            end
+        end
+    end
+    return PROOF_LOCATION_INPLACE
+end
+
+--- Get the proof section title.
+local function get_proof_section_title()
+    if type(theorem['proof-section']) == 'table' then
+        if theorem['proof-section'].title ~= nil then
+            return theorem['proof-section'].title
+        end
+    end
+    return "Omitted Proofs"
+end
+
+--- Get the list of allowed proof tags.
+local function get_proof_tag_allowlist()
+    if theorem_cache['proof-tag-allowlist'] ~= nil then
+        return theorem_cache['proof-tag-allowlist']
+    end
+    local proof_section = theorem['proof-section']
+    if type(proof_section) == 'table' then
+        if type(proof_section.location) == 'table' then
+            local tag_allowlist = pandoc.List({})
+            for tag, _ in pairs(proof_section.location) do
+                if tag ~= 'default' then
+                    table.insert(tag_allowlist, tag)
+                end
+            end
+            theorem_cache['proof-tag-allowlist'] = tag_allowlist
+            return tag_allowlist
+        end
+    end
+    return {}
+end
+
+--- Get the proof section location.
+local function get_proof_section_location()
+    local proof_tag_allowlist = get_proof_tag_allowlist()
+    table.insert(proof_tag_allowlist, 'default')
+    local proof_location_list = pandoc.List({})
+    for _, tag in pairs(proof_tag_allowlist) do
+        local proof_location = get_proof_location(tag)
+        if proof_location ~= PROOF_LOCATION_INPLACE then
+            if not proof_location_list:includes(proof_location) then
+                table.insert(proof_location_list, proof_location)
+            end
+        end
+    end
+    if #proof_location_list > 1 then
+        local msg_fmt = "proof location: at most one of ['section', 'chapter', 'document'] supported, found: [%s]"
+        error(string.format(msg_fmt, table.concat(proof_location_list, ", ")))
+    elseif #proof_location_list == 1 then
+        return proof_location_list[1]
+    else
+        return PROOF_LOCATION_INPLACE
+    end
+end
+
+--- Get the header level for proof sections.
 local function get_proof_section_level()
     if theorem_cache['proof-section-level'] ~= nil then
         return theorem_cache['proof-section-level']
     end
-    local proof_section_location = theorem['proof-section-location']
+    local proof_section_location = get_proof_section_location()
     if proof_section_location == PROOF_LOCATION_INPLACE then
-        error("Should not compute proof section level if proof-section-location == inline")
+        error("Should not compute proof section level if proof-section location is " .. PROOF_LOCATION_INPLACE)
         return nil
     elseif proof_section_location == PROOF_LOCATION_DOCUMENT then
-        error("Should not compute proof section level if proof-section-location == document")
+        error("Should not compute proof section level if proof-section location is " .. PROOF_LOCATION_DOCUMENT)
         return nil
     else
         -- Compute the level adjustment based on the top-level division.
@@ -139,17 +218,18 @@ local function get_proof_section_level()
     end
 end
 
----Test whether or not theorems should be restatable.
-local function require_restatable()
+--- Test whether or not theorems should be restatable.
+local function get_theorem_restatable()
     if theorem.restatable then
         return true
     else
-        if theorem['proof-section-location'] == 'inplace' then
+        local proof_section_location = get_proof_section_location()
+        if proof_section_location == PROOF_LOCATION_INPLACE then
             return false
         else
             if theorem.restatable == false then
-                local msg_fmt = "The value '%s' for proof-section-location requries restatable"
-                log(string.format(msg_fmt, theorem['proof-section-location']), 'WARNING')
+                local msg_fmt = "The value '%s' for proof-section location requries restatable"
+                log(string.format(msg_fmt, proof_section_location), 'WARNING')
             end
             return true
         end
@@ -346,18 +426,57 @@ local function render_theorem_identifier(theorem_info)
     return theorem_identifier
 end
 
+local function lex_proof_tag(item)
+    if item[1] ~= nil and (item[1].tag == 'Plain' or item[1].tag == 'Para') then
+        if item[1].content[1].tag == 'Cite' then
+            local tag_allowlist = get_proof_tag_allowlist()
+            if #item[1].content[1].citations == 1 then
+                local tag = item[1].content[1].citations[1]
+                if tag_allowlist:includes(tag.id) and tag.mode == 'AuthorInText' and #tag.prefix == 0 and #tag.suffix ==
+                    0 then
+                    table.remove(item[1].content, 1)
+                    while (item[1].content[1].tag == 'Space') do
+                        table.remove(item[1].content, 1)
+                    end
+                    return tag.id
+                end
+            end
+        else
+            return 'default'
+        end
+    end
+end
+
+-- Lex a definition list item body containing a theorem body.
+---
+---@param body table
+---@return table
+local function lex_definition_list_definition_item(body)
+    assert(#body == 1, "Unexpected number of elements '" .. #body .. "'")
+    local result = {}
+    for _, item in pairs(body) do
+        local tag = lex_proof_tag(item)
+        local location = get_proof_location(tag)
+        result[location] = item
+    end
+    return result
+end
+
 -- Lex a definition list item containing a theorem.
 ---
 ---@param head table
 ---@param body table
 ---@return table
-local function lex_definition_list_item(head, body)
+local function lex_definition_list_definition(head, body)
     local success, theorem_info = pcall(function()
         return run_lexer(theorem_header_lexer, head)
     end)
     if success then
-        assert(#body == 1, "Unexpected number of elements '" .. #body .. "'")
-        theorem_info.body = body[1]
+        if theorem_info.style.name == "Proof" then
+            theorem_info.body = lex_definition_list_definition_item(body)
+        else
+            theorem_info.body = body[1]
+        end
         if theorem_info.custom_counter == nil then
             local theorem_style = theorem.styles[theorem_info.style.name]
             if theorem_style.counter ~= nil then
@@ -386,7 +505,7 @@ local function lex_definition_list(el)
         assert(el.content ~= nil)
         local result_list = pandoc.List({})
         for index = 1, #el.content do
-            local success, result_or_error = pcall(lex_definition_list_item, table.unpack(el.content[index]))
+            local success, result_or_error = pcall(lex_definition_list_definition, table.unpack(el.content[index]))
             if success then
                 result_list:insert(result_or_error)
             else
@@ -439,16 +558,27 @@ local function render_theorem_other(theorem_info)
     if theorem_info.miscellaneous ~= nil then
         header:insert(pandoc.Emph(theorem_info.miscellaneous))
     end
-    -- Render theorem content
-    local content = pandoc.Blocks({})
-    content:insert(pandoc.Para(header))
-    content:extend(theorem_info.body)
     -- Render theorem statement
-    local statement = pandoc.Blocks({})
-    statement:insert(pandoc.Div(content, pandoc.Attr(theorem_info.identifier, theorem_info.style.classes)))
-    theorem_info.statement = statement
+    if theorem_info.style.name == "Proof" then
+        theorem_info.statement = {}
+        for location, body in pairs(theorem_info.body) do
+            local content = pandoc.Blocks({})
+            content:insert(pandoc.Para(header))
+            content:extend(body)
+            local statement = pandoc.Blocks({})
+            statement:insert(pandoc.Div(content, pandoc.Attr(theorem_info.identifier, theorem_info.style.classes)))
+            theorem_info.statement[location] = statement
+        end
+    else
+        local content = pandoc.Blocks({})
+        content:insert(pandoc.Para(header))
+        content:extend(theorem_info.body)
+        local statement = pandoc.Blocks({})
+        statement:insert(pandoc.Div(content, pandoc.Attr(theorem_info.identifier, theorem_info.style.classes)))
+        theorem_info.statement = statement
+    end
     -- Render theorem restatement
-    if require_restatable() then
+    if get_theorem_restatable() then
         theorem_info.restatement = statement
     end
     return theorem_info
@@ -469,7 +599,7 @@ local function render_theorem_latex(theorem_info)
         header:insert(pandoc.RawInline('latex', string.format('\\renewcommand{\\the%s}{%s}',
             theorem_info.style.environment, theorem_info.custom_counter)))
     end
-    if require_restatable() then
+    if get_theorem_restatable() then
         -- Render theorem command
         local theorem_command_name = theorem_info.identifier:gsub("%A", "")
         -- Render theorem statement
@@ -505,7 +635,7 @@ local function render_theorem_latex(theorem_info)
     -- Add LaTeX cross-reference label to header
     header:insert(pandoc.RawInline('latex', string.format('\\label{%s}', theorem_info.identifier)))
     -- Render footer start
-    if require_restatable() then
+    if get_theorem_restatable() then
         footer:insert(pandoc.RawInline('latex', '\\end{restatable}'))
     else
         footer:insert(pandoc.RawInline('latex', string.format('\\end{%s}', theorem_info.style.environment)))
@@ -516,12 +646,23 @@ local function render_theorem_latex(theorem_info)
     end
     -- Render footer end
     footer:insert(pandoc.RawInline('latex', '}'))
-    -- Render theorem restatement
-    local statement = pandoc.Blocks({})
-    statement:insert(pandoc.Para(header))
-    statement:extend(theorem_info.body)
-    statement:insert(pandoc.Para(footer))
-    theorem_info.statement = statement
+    -- Render theorem statement
+    if theorem_info.style.name == "Proof" then
+        theorem_info.statement = {}
+        for location, body in pairs(theorem_info.body) do
+            local statement = pandoc.Blocks({})
+            statement:insert(pandoc.Para(header))
+            statement:extend(body)
+            statement:insert(pandoc.Para(footer))
+            theorem_info.statement[location] = statement
+        end
+    else
+        local statement = pandoc.Blocks({})
+        statement:insert(pandoc.Para(header))
+        statement:extend(theorem_info.body)
+        statement:insert(pandoc.Para(footer))
+        theorem_info.statement = statement
+    end
     return theorem_info
 end
 
@@ -588,7 +729,7 @@ local get_options = {
 --------------------------------------------------------------------------------
 
 local function render_proof_section_header()
-    return pandoc.Header(get_proof_section_level(), theorem['proof-section-title'])
+    return pandoc.Header(get_proof_section_level(), get_proof_section_title())
 end
 
 local function require_proof_section()
@@ -608,26 +749,28 @@ local function render_theorems(doc)
                 local output = pandoc.Blocks({})
                 for theorem_index, theorem_info in pairs(theorem_info_list) do
                     render_theorem(theorem_info)
+                    local proof_section_location = get_proof_section_location()
                     --- Determine whether an item is a proof.
-                    if theorem_info.style.name ~= "Proof" then
-                        -- Statements are rendered in-place
-                        output:extend(theorem_info.statement)
-                        if theorem['proof-section-location'] ~= PROOF_LOCATION_INPLACE then
-                            -- Add the statement to the restatement cache
-                            theorem_cache['restatement-cache'][theorem_info.identifier] = theorem_info.restatement
+                    if theorem_info.style.name == "Proof" then
+                        -- Proofs follow the proof-section location
+                        if theorem_info.statement[PROOF_LOCATION_INPLACE] ~= nil then
+                            output:extend(theorem_info.statement[PROOF_LOCATION_INPLACE])
                         end
-                    else
-                        -- Proofs follow the proof-section-location option
-                        if theorem['proof-section-location'] == PROOF_LOCATION_INPLACE then
-                            output:extend(theorem_info.statement)
-                        else
+                        if theorem_info.statement[proof_section_location] ~= nil then
                             -- Get the corresponding statement from the cache
                             local restatement = theorem_cache['restatement-cache'][theorem_info['previous-identifier']]
                             assert(restatement ~= nil)
                             local restatement_and_proof = pandoc.Blocks({})
                             restatement_and_proof:extend(restatement)
-                            restatement_and_proof:extend(theorem_info.statement)
+                            restatement_and_proof:extend(theorem_info.statement[proof_section_location])
                             table.insert(theorem_cache['proof-section-cache'], restatement_and_proof)
+                        end
+                    else
+                        -- Statements are rendered in-place
+                        output:extend(theorem_info.statement)
+                        if proof_section_location ~= PROOF_LOCATION_INPLACE then
+                            -- Add the statement to the restatement cache
+                            theorem_cache['restatement-cache'][theorem_info.identifier] = theorem_info.restatement
                         end
                     end
                 end
@@ -637,7 +780,7 @@ local function render_theorems(doc)
             end
         end,
         Header = function(el)
-            local proof_section_location = theorem['proof-section-location']
+            local proof_section_location = get_proof_location()
             if proof_section_location == PROOF_LOCATION_INPLACE then
                 return nil
             end
