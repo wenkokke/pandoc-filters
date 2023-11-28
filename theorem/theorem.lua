@@ -23,6 +23,8 @@ local theorem = {
     ['proof-section'] = {
         -- Specify the title for the proof section.
         title = "Omitted Proofs",
+        -- Specify the identifier for the proof section.
+        identifier = "omitted-proofs",
         -- Specify where to render proofs. Possible values are:
         -- * inplace  -- in-place (default).
         -- * section  -- at the end of the section.
@@ -115,7 +117,10 @@ local theorem_cache = {
     ['restatement-cache'] = {},
 
     -- List of rendered proofs that have not yet been inserted.
-    ['proof-section-cache'] = {}
+    ['proof-section-cache'] = {},
+
+    -- Counter for the number of proof sections inserted.
+    ['proof-section-counter'] = 1
 }
 
 --- Get the proof section location.
@@ -745,7 +750,17 @@ local get_options = {
 --------------------------------------------------------------------------------
 
 local function render_proof_section_header()
-    return pandoc.Header(get_proof_section_level(), get_proof_section_title())
+    local level = get_proof_section_level()
+    local title = get_proof_section_title()
+    local counter = theorem_cache['proof-section-counter']
+    local identifier = nil
+    if counter == 1 then
+        identifier = theorem['proof-section'].identifier
+    else
+        identifier = string.format("%s-%d", theorem['proof-section'].identifier, counter)
+    end
+    theorem_cache['proof-section-counter'] = counter + 1
+    return pandoc.Header(level, pandoc.Str(title), pandoc.Attr(identifier))
 end
 
 local function require_proof_section()
