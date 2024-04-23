@@ -62,6 +62,11 @@ local theorem = {
             counter = 1,
             environment = 'claim'
         },
+        Conjecture = {
+            classes = {'conjecture'},
+            counter = 1,
+            environment = 'conjecture'
+        },
         Corollary = {
             classes = {'corollary'},
             counter = 1,
