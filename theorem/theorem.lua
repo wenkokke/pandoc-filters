@@ -792,14 +792,17 @@ local function render_theorems(doc)
                         if theorem_info.statement[PROOF_LOCATION_INPLACE] ~= nil then
                             output:extend(theorem_info.statement[PROOF_LOCATION_INPLACE])
                         end
-                        if theorem_info.statement[proof_section_location] ~= nil then
-                            -- Get the corresponding statement from the cache
-                            local restatement = theorem_cache['restatement-cache'][theorem_info['previous-identifier']]
-                            assert(restatement ~= nil)
-                            local restatement_and_proof = pandoc.Blocks({})
-                            restatement_and_proof:extend(restatement)
-                            restatement_and_proof:extend(theorem_info.statement[proof_section_location])
-                            table.insert(theorem_cache['proof-section-cache'], restatement_and_proof)
+                        if proof_section_location ~= PROOF_LOCATION_INPLACE then
+                            if theorem_info.statement[proof_section_location] ~= nil then
+                                -- Get the corresponding statement from the cache
+                                local restatement =
+                                    theorem_cache['restatement-cache'][theorem_info['previous-identifier']]
+                                assert(restatement ~= nil)
+                                local restatement_and_proof = pandoc.Blocks({})
+                                restatement_and_proof:extend(restatement)
+                                restatement_and_proof:extend(theorem_info.statement[proof_section_location])
+                                table.insert(theorem_cache['proof-section-cache'], restatement_and_proof)
+                            end
                         end
                     else
                         -- Statements are rendered in-place
