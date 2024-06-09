@@ -9,43 +9,36 @@ PANDOC_VERSION:must_be_at_least '2.17'
 
 -- Constants for the possible values of proof-section-location.
 local PROOF_LOCATION_INPLACE = 'inplace'
-local PROOF_LOCATION_SECTION = 'section'
-local PROOF_LOCATION_CHAPTER = 'chapter'
-local PROOF_LOCATION_PART = 'part'
-local PROOF_LOCATION_DOCUMENT = 'document'
+local PROOF_LOCATION_OMITTED = 'omitted'
 
 -- Configuration for filter. Can be overwritten by metadata.
 local theorem = {
     -- Use restatable environment from `thm-restate`.
     restatable = nil,
 
+    -- Pattern for ommitted proof sections.
+
     -- Specify the options for the proof section.
     ['proof-section'] = {
-        -- Specify the title for the proof section.
-        title = "Omitted Proofs",
-        -- Specify the identifier for the proof section.
-        identifier = "omitted-proofs",
+        pattern = "%a+%-omitted%-proofs",
         -- Specify where to render proofs. Possible values are:
         -- * inplace  -- in-place (default).
-        -- * section  -- at the end of the section.
-        -- * chapter  -- at the end of the chapter.
-        -- * part     -- at the end of the part.
-        -- * document -- at the end of the section.
+        -- * omitted  -- in the next section that matches the pattern.
         -- These be specified either all-at-once...
         --
         --  ```yaml
-        --  location: "section"
+        --  location: "omitted"
         --  ```
         --
         -- ...or separately for by using proof tags, e.g., the following
-        -- specifies the tags @here and @omit to keep the proof in-place
+        -- specifies the tags @summary and @omitted to keep the proof in-place
         -- and move it to the proof section, respectively...
         --
         --  ```yaml
         --  location:
-        --    here: "inplace"
-        --    omit: "section"
-        --    default: "section"
+        --    summary: "inplace"
+        --    omitted: "omitted"
+        --    default: "inplace"
         --  ```
         location = nil
     },
@@ -151,16 +144,6 @@ local function get_proof_location(tag)
     return PROOF_LOCATION_INPLACE
 end
 
---- Get the proof section title.
-local function get_proof_section_title()
-    if type(theorem['proof-section']) == 'table' then
-        if theorem['proof-section'].title ~= nil then
-            return theorem['proof-section'].title
-        end
-    end
-    return "Omitted Proofs"
-end
-
 --- Get the list of allowed proof tags.
 local function get_proof_tag_allowlist()
     if theorem_cache['proof-tag-allowlist'] ~= nil then
@@ -196,51 +179,12 @@ local function get_proof_section_location()
         end
     end
     if #proof_location_list > 1 then
-        local msg_fmt = "proof location: at most one of ['section', 'chapter', 'document'] supported, found: [%s]"
+        local msg_fmt = "proof location: at most one of ['inplace', 'omitted'] supported, found: [%s]"
         error(string.format(msg_fmt, table.concat(proof_location_list, ", ")))
     elseif #proof_location_list == 1 then
         return proof_location_list[1]
     else
         return PROOF_LOCATION_INPLACE
-    end
-end
-
---- Get the header level for proof sections.
-local function get_proof_section_level()
-    if theorem_cache['proof-section-level'] ~= nil then
-        return theorem_cache['proof-section-level']
-    end
-    local proof_section_location = get_proof_section_location()
-    if proof_section_location == PROOF_LOCATION_INPLACE then
-        error("Should not compute proof section level if proof-section location is " .. PROOF_LOCATION_INPLACE)
-        return nil
-    elseif proof_section_location == PROOF_LOCATION_DOCUMENT then
-        error("Should not compute proof section level if proof-section location is " .. PROOF_LOCATION_DOCUMENT)
-        return nil
-    else
-        -- Compute the level adjustment based on the top-level division.
-        local level_adjustment = ({
-            ['top-level-part'] = 0,
-            ['top-level-chapter'] = 1,
-            ['top-level-section'] = 2,
-            ['top-level-default'] = 0
-        })[PANDOC_WRITER_OPTIONS.top_level_division]
-        -- Compute the unadjusted proof section level.
-        local proof_section_at_end_of_level = ({
-            [PROOF_LOCATION_SECTION] = 3,
-            [PROOF_LOCATION_CHAPTER] = 2,
-            [PROOF_LOCATION_PART] = 1
-        })[proof_section_location]
-        -- Return the adjusted proof section level.
-        if proof_section_at_end_of_level > level_adjustment then
-            local proof_section_level = 1 + proof_section_at_end_of_level - level_adjustment
-            theorem_cache['proof-section-level'] = proof_section_level
-            return proof_section_level
-        else
-            local top_level_division = PANDOC_WRITER_OPTIONS.top_level_division:match('^top%-level%-(%a+)$')
-            local msg_fmt = "proof-section-location '%s' is above top-level-division '%s'"
-            error(string.format(msg_fmt, proof_section_location, top_level_division))
-        end
     end
 end
 
@@ -538,7 +482,7 @@ local function lex_definition_list(el)
                 -- If result_list is non-empty, throw an error:
                 if index > 1 then
                     local msg_fmt = 'item %s in definition list is not a theorem: %s\n'
-                    log(string.format(msg_fmt, index, result_or_error), 'ERROR')
+                    io.stderr:write("ERROR: " .. string.format(msg_fmt, index, result_or_error) .. "\n")
                 else
                     return nil
                 end
@@ -754,20 +698,6 @@ local get_options = {
 -- Filter that renders the theorems as Pandoc elements.
 --------------------------------------------------------------------------------
 
-local function render_proof_section_header()
-    local level = get_proof_section_level()
-    local title = get_proof_section_title()
-    local counter = theorem_cache['proof-section-counter']
-    local identifier = nil
-    if counter == 1 then
-        identifier = theorem['proof-section'].identifier
-    else
-        identifier = string.format("%s-%d", theorem['proof-section'].identifier, counter)
-    end
-    theorem_cache['proof-section-counter'] = counter + 1
-    return pandoc.Header(level, pandoc.Str(title), pandoc.Attr(identifier))
-end
-
 local function require_proof_section()
     local proof_section_cache = theorem_cache['proof-section-cache']
     return #proof_section_cache > 0
@@ -787,7 +717,14 @@ local function render_theorems(doc)
                     render_theorem(theorem_info)
                     local proof_section_location = get_proof_section_location()
                     --- Determine whether an item is a proof.
-                    if theorem_info.style.name == "Proof" then
+                    if theorem_info.style.name ~= "Proof" then
+                        -- Statements are rendered in-place
+                        output:extend(theorem_info.statement)
+                        if proof_section_location ~= PROOF_LOCATION_INPLACE then
+                            -- Add the statement to the restatement cache
+                            theorem_cache['restatement-cache'][theorem_info.identifier] = theorem_info.restatement
+                        end
+                    else
                         -- Proofs follow the proof-section location
                         if theorem_info.statement[PROOF_LOCATION_INPLACE] ~= nil then
                             output:extend(theorem_info.statement[PROOF_LOCATION_INPLACE])
@@ -804,13 +741,6 @@ local function render_theorems(doc)
                                 table.insert(theorem_cache['proof-section-cache'], restatement_and_proof)
                             end
                         end
-                    else
-                        -- Statements are rendered in-place
-                        output:extend(theorem_info.statement)
-                        if proof_section_location ~= PROOF_LOCATION_INPLACE then
-                            -- Add the statement to the restatement cache
-                            theorem_cache['restatement-cache'][theorem_info.identifier] = theorem_info.restatement
-                        end
                     end
                 end
                 return output
@@ -819,37 +749,24 @@ local function render_theorems(doc)
             end
         end,
         Header = function(el)
-            local proof_section_location = get_proof_location()
-            if proof_section_location == PROOF_LOCATION_INPLACE then
-                return nil
+            if string.match(el.identifier, theorem['proof-section'].pattern) then
+                if not require_proof_section() then
+                    io.stderr:write("WARNING: empty proof section with identifier '#" .. el.identifier .. "'\n")
+                    return nil
+                end
+                local output = pandoc.Blocks({})
+                output:insert(el)
+                for _, restatement_and_proof in pairs(theorem_cache['proof-section-cache']) do
+                    output:extend(restatement_and_proof)
+                end
+                reset_proof_section_cache()
+                return output
             end
-            if proof_section_location == PROOF_LOCATION_DOCUMENT then
-                return nil
-            end
-            local proof_section_level = get_proof_section_level()
-            if proof_section_level <= el.level then
-                return nil
-            end
-            if not require_proof_section() then
-                return nil
-            end
-            local output = pandoc.Blocks({})
-            output:insert(render_proof_section_header())
-            for _, restatement_and_proof in pairs(theorem_cache['proof-section-cache']) do
-                output:extend(restatement_and_proof)
-            end
-            output:insert(el)
-            reset_proof_section_cache()
-            return output
         end,
         traversal = "topdown"
     })
     if require_proof_section() then
-        doc.blocks:insert(render_proof_section_header())
-        for _, restatement_and_proof in pairs(theorem_cache['proof-section-cache']) do
-            doc.blocks:extend(restatement_and_proof)
-        end
-        reset_proof_section_cache()
+        io.stderr:write("ERROR: missing proof section\n")
     end
     return doc
 end
