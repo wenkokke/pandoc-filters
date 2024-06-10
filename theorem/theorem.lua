@@ -7,6 +7,9 @@
 -- Uses `pandoc.Blocks`, which was added in Pandoc 2.17.
 PANDOC_VERSION:must_be_at_least '2.17'
 
+-- Import the logging module:
+local logging = require 'logging'
+
 -- Constants for the possible values of proof-section-location.
 local PROOF_LOCATION_INPLACE = 'inplace'
 local PROOF_LOCATION_OMITTED = 'omitted'
@@ -179,8 +182,8 @@ local function get_proof_section_location()
         end
     end
     if #proof_location_list > 1 then
-        local msg_fmt = "proof location: at most one of ['inplace', 'omitted'] supported, found: [%s]"
-        error(string.format(msg_fmt, table.concat(proof_location_list, ", ")))
+        local msg_fmt = "proof location: at most one of ['inplace', 'omitted'] supported, found: [%s]\n"
+        io.stderr:write(string.format(msg_fmt, table.concat(proof_location_list, ", ")))
     elseif #proof_location_list == 1 then
         return proof_location_list[1]
     else
@@ -199,7 +202,7 @@ local function get_theorem_restatable()
         else
             if theorem.restatable == false then
                 local msg_fmt = "The value '%s' for proof-section location requries restatable"
-                log(string.format(msg_fmt, proof_section_location), 'WARNING')
+                io.stderr:write('WARNING: ' .. string.format(msg_fmt, proof_section_location) .. "\n")
             end
             return true
         end
@@ -221,7 +224,8 @@ local function set_theorem_style(info, value)
                 info.style[key] = value
             end
         else
-            log("Unsupported theorem style '" .. value .. "'", 'ERROR')
+            local msg_fmt = "ERROR: Unsupported theorem style '%s'\n"
+            io.stderr:write(string.format(msg_fmt, value))
         end
     end
 end
@@ -337,8 +341,8 @@ local function run_lexer(lexer, els)
         if pandoc.List.includes(lexer.final_states, state) then
             return result
         else
-            local msg_fmt = "Lexer ended in non-final state '%s'"
-            log(string.format(msg_fmt, state), 'ERROR')
+            local msg_fmt = "ERROR: Lexer ended in non-final state '%s'\n"
+            io.stderr:write(string.format(msg_fmt, state))
         end
     elseif el ~= nil and el.tag == 'Str' then
         -- Try every lexer rule, in order:
@@ -368,8 +372,8 @@ local function run_lexer(lexer, els)
         goto next
     end
     -- Throw a lexical error:
-    local msg_fmt = "Lexical error at token '%s' in state '%s'"
-    log(string.format(msg_fmt, el, state), 'ERROR')
+    local msg_fmt = "ERROR: Lexical error at token '%s' in state '%s'\n"
+    io.stderr:write(string.format(msg_fmt, el, state))
 end
 
 ---Render the identifier for a theorem.
@@ -460,7 +464,8 @@ local function lex_definition_list_definition(head, body)
         theorem_cache['previous-identifier'] = theorem_info.identifier
         return theorem_info
     else
-        log(tostring(theorem_info), 'WARNING')
+        local msg_fmt = "WARNING: Could not lex theorem '%s'\n"
+        io.stderr:write(string.format(msg_fmt, tostring(theorem_info)))
         return nil
     end
 end
@@ -481,8 +486,8 @@ local function lex_definition_list(el)
             else
                 -- If result_list is non-empty, throw an error:
                 if index > 1 then
-                    local msg_fmt = 'item %s in definition list is not a theorem: %s\n'
-                    io.stderr:write("ERROR: " .. string.format(msg_fmt, index, result_or_error) .. "\n")
+                    local msg_fmt = "ERROR: item %s in definition list is not a theorem: %s\n"
+                    io.stderr:write(string.format(msg_fmt, index, result_or_error))
                 else
                     return nil
                 end
@@ -751,7 +756,8 @@ local function render_theorems(doc)
         Header = function(el)
             if string.match(el.identifier, theorem['proof-section'].pattern) then
                 if not require_proof_section() then
-                    io.stderr:write("WARNING: empty proof section with identifier '#" .. el.identifier .. "'\n")
+                    local msg_fmt = "WARNING: empty proof section with identifier '#%s'\n"
+                    io.stderr:write(string.format(msg_fmt, el.identifier))
                     return nil
                 end
                 local output = pandoc.Blocks({})
