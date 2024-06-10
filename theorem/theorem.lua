@@ -712,7 +712,6 @@ local function render_theorems(doc)
                     return nil
                 end
                 local output = pandoc.Blocks({})
-                output:insert(el)
                 for _, restatement_and_proof in pairs(theorem_cache.proofs) do
                     output:extend(restatement_and_proof)
                 end
