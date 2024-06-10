@@ -8,7 +8,7 @@
 PANDOC_VERSION:must_be_at_least '2.17'
 
 -- Import the logging module:
-local logging = require 'logging'
+-- local logging = require 'logging'
 
 -- Constants for the possible values of proof-section-location.
 local PROOF_LOCATION_INPLACE = 'inplace'
