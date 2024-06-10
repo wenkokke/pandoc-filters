@@ -19,11 +19,8 @@ local theorem = {
     -- Use restatable environment from `thm-restate`.
     restatable = nil,
 
-    -- Pattern for ommitted proof sections.
-
     -- Specify the options for the proof section.
     ['proof-section'] = {
-        pattern = "%a+%-omitted%-proofs",
         -- Specify where to render proofs. Possible values are:
         -- * inplace  -- in-place (default).
         -- * omitted  -- in the next section that matches the pattern.
@@ -714,6 +711,22 @@ end
 
 local function render_theorems(doc)
     doc = doc:walk({
+        CodeBlock = function(el)
+            if el.classes:includes("omitted-proofs") then
+                if not require_proof_section() then
+                    local msg_fmt = "WARNING: empty proof section with identifier '#%s'\n"
+                    io.stderr:write(string.format(msg_fmt, el.identifier))
+                    return nil
+                end
+                local output = pandoc.Blocks({})
+                output:insert(el)
+                for _, restatement_and_proof in pairs(theorem_cache['proof-section-cache']) do
+                    output:extend(restatement_and_proof)
+                end
+                reset_proof_section_cache()
+                return output
+            end
+        end,
         DefinitionList = function(el)
             local theorem_info_list = lex_definition_list(el)
             if theorem_info_list ~= nil then
@@ -751,22 +764,6 @@ local function render_theorems(doc)
                 return output
             else
                 return nil
-            end
-        end,
-        Header = function(el)
-            if string.match(el.identifier, theorem['proof-section'].pattern) then
-                if not require_proof_section() then
-                    local msg_fmt = "WARNING: empty proof section with identifier '#%s'\n"
-                    io.stderr:write(string.format(msg_fmt, el.identifier))
-                    return nil
-                end
-                local output = pandoc.Blocks({})
-                output:insert(el)
-                for _, restatement_and_proof in pairs(theorem_cache['proof-section-cache']) do
-                    output:extend(restatement_and_proof)
-                end
-                reset_proof_section_cache()
-                return output
             end
         end,
         traversal = "topdown"
