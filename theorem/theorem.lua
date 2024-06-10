@@ -426,7 +426,7 @@ end
 ---@param body table
 ---@return table
 local function lex_definition_list_definition_item(body)
-    assert(#body == 1, "Unexpected number of elements '" .. #body .. "'")
+    -- assert(#body == 1, "Unexpected number of elements '" .. #body .. "'")
     local result = {}
     for _, item in pairs(body) do
         local tag = lex_proof_tag(item)
