@@ -11,37 +11,35 @@ PANDOC_VERSION:must_be_at_least '2.17'
 -- local logging = require 'logging'
 
 -- Constants for the possible values of proof-section-location.
-local PROOF_LOCATION_INPLACE = 'inplace'
-local PROOF_LOCATION_OMITTED = 'omitted'
+local LOCATION_INPLACE = 'inplace'
+local LOCATION_OMITTED = 'omitted'
 
 -- Configuration for filter. Can be overwritten by metadata.
 local theorem = {
     -- Use restatable environment from `thm-restate`.
     restatable = nil,
-
-    -- Specify the options for the proof section.
-    ['proof-section'] = {
-        -- Specify where to render proofs. Possible values are:
-        -- * inplace  -- in-place (default).
-        -- * omitted  -- in the next section that matches the pattern.
-        -- These be specified either all-at-once...
-        --
-        --  ```yaml
-        --  location: "omitted"
-        --  ```
-        --
-        -- ...or separately for by using proof tags, e.g., the following
-        -- specifies the tags @summary and @omitted to keep the proof in-place
-        -- and move it to the proof section, respectively...
-        --
-        --  ```yaml
-        --  location:
-        --    summary: "inplace"
-        --    omitted: "omitted"
-        --    default: "inplace"
-        --  ```
-        location = nil
-    },
+    -- Specify the location for omitted proofs.
+    --
+    -- Possible values are:
+    -- * inplace  -- in-place (default).
+    -- * omitted  -- at the next omitted-proofs block.
+    -- These be specified either all-at-once...
+    --
+    --  ```yaml
+    --  location: "omitted"
+    --  ```
+    --
+    -- ...or separately for by using proof tags, e.g., the following
+    -- specifies the tags @summary and @omitted to keep the proof in-place
+    -- and move it to the proof section, respectively...
+    --
+    --  ```yaml
+    --  location:
+    --    summary: "inplace"
+    --    omitted: "omitted"
+    --    default: "inplace"
+    --  ```
+    location = nil,
 
     -- The theorem styles.
     styles = {
@@ -106,59 +104,54 @@ local theorem = {
 -- Cache for information tracked at runtime.
 local theorem_cache = {
     -- String that tracks the previous statement's identifier.
-    ['previous-identifier'] = "unknown",
+    previous_identifier = "unknown",
 
     -- Table of cross-reference targets.
-    ['targets'] = {},
+    targets = {},
 
     -- Table of rendered statements by identifier.
-    ['restatement-cache'] = {},
+    statements = {},
 
     -- List of rendered proofs that have not yet been inserted.
-    ['proof-section-cache'] = {},
-
-    -- Counter for the number of proof sections inserted.
-    ['proof-section-counter'] = 1
+    proofs = {}
 }
 
 --- Get the proof section location.
-local function get_proof_location(tag)
-    local proof_section = theorem['proof-section']
-    if type(proof_section) == 'table' then
-        if type(proof_section.location) == 'string' then
-            return proof_section.location
-        elseif type(proof_section.location) == 'table' then
+local function get_location(tag)
+    if type(theorem) == 'table' then
+        if type(theorem.location) == 'string' then
+            return theorem.location
+        elseif type(theorem.location) == 'table' then
             if tag ~= nil then
                 assert(type(tag) == 'string')
-                if proof_section.location[tag] ~= nil then
-                    return proof_section.location[tag]
+                if theorem.location[tag] ~= nil then
+                    return theorem.location[tag]
                 else
                     local msg_fmt = "proof location for tag '%s' is not defined"
                     error(string.format(msg_fmt, tag))
                 end
-            elseif proof_section.location.default ~= nil then
-                return proof_section.location.default
+            elseif theorem.location.default ~= nil then
+                return theorem.location.default
             end
         end
     end
-    return PROOF_LOCATION_INPLACE
+    return LOCATION_INPLACE
 end
 
 --- Get the list of allowed proof tags.
-local function get_proof_tag_allowlist()
-    if theorem_cache['proof-tag-allowlist'] ~= nil then
-        return theorem_cache['proof-tag-allowlist']
+local function get_location_tag_allowlist()
+    if theorem_cache.location_tag_allowlist ~= nil then
+        return theorem_cache.location_tag_allowlist
     end
-    local proof_section = theorem['proof-section']
-    if type(proof_section) == 'table' then
-        if type(proof_section.location) == 'table' then
+    if type(theorem) == 'table' then
+        if type(theorem.location) == 'table' then
             local tag_allowlist = pandoc.List({})
-            for tag, _ in pairs(proof_section.location) do
+            for tag, _ in pairs(theorem.location) do
                 if tag ~= 'default' then
                     table.insert(tag_allowlist, tag)
                 end
             end
-            theorem_cache['proof-tag-allowlist'] = tag_allowlist
+            theorem_cache.location_tag_allowlist = tag_allowlist
             return tag_allowlist
         end
     end
@@ -167,34 +160,34 @@ end
 
 --- Get the proof section location.
 local function get_proof_section_location()
-    local proof_tag_allowlist = get_proof_tag_allowlist()
-    table.insert(proof_tag_allowlist, 'default')
-    local proof_location_list = pandoc.List({})
-    for _, tag in pairs(proof_tag_allowlist) do
-        local proof_location = get_proof_location(tag)
-        if proof_location ~= PROOF_LOCATION_INPLACE then
-            if not proof_location_list:includes(proof_location) then
-                table.insert(proof_location_list, proof_location)
+    local location_tag_allowlist = get_location_tag_allowlist()
+    table.insert(location_tag_allowlist, 'default')
+    local location_list = pandoc.List({})
+    for _, tag in pairs(location_tag_allowlist) do
+        local location = get_location(tag)
+        if location ~= LOCATION_INPLACE then
+            if not location_list:includes(location) then
+                table.insert(location_list, location)
             end
         end
     end
-    if #proof_location_list > 1 then
+    if #location_list > 1 then
         local msg_fmt = "proof location: at most one of ['inplace', 'omitted'] supported, found: [%s]\n"
-        io.stderr:write(string.format(msg_fmt, table.concat(proof_location_list, ", ")))
-    elseif #proof_location_list == 1 then
-        return proof_location_list[1]
+        io.stderr:write(string.format(msg_fmt, table.concat(location_list, ", ")))
+    elseif #location_list == 1 then
+        return location_list[1]
     else
-        return PROOF_LOCATION_INPLACE
+        return LOCATION_INPLACE
     end
 end
 
 --- Test whether or not theorems should be restatable.
-local function get_theorem_restatable()
+local function get_restatable()
     if theorem.restatable then
         return true
     else
         local proof_section_location = get_proof_section_location()
-        if proof_section_location == PROOF_LOCATION_INPLACE then
+        if proof_section_location == LOCATION_INPLACE then
             return false
         else
             if theorem.restatable == false then
@@ -388,7 +381,7 @@ local function render_theorem_identifier(theorem_info)
     elseif theorem_info.style.counter ~= nil then
         theorem_identifier = tostring(theorem_info.style.counter)
     else
-        theorem_identifier = "for-" .. theorem_info['previous-identifier']
+        theorem_identifier = "for-" .. theorem_info.previous_identifier
     end
     -- Sanitize identifier (replace non-alphanumeric characters with dashes)
     theorem_identifier = string.gsub(theorem_identifier, "%W", "-")
@@ -400,7 +393,7 @@ end
 local function lex_proof_tag(item)
     if item[1] ~= nil and (item[1].tag == 'Plain' or item[1].tag == 'Para') then
         if item[1].content[1].tag == 'Cite' then
-            local tag_allowlist = get_proof_tag_allowlist()
+            local tag_allowlist = get_location_tag_allowlist()
             if #item[1].content[1].citations == 1 then
                 local tag = item[1].content[1].citations[1]
                 if tag_allowlist:includes(tag.id) and tag.mode == 'AuthorInText' and #tag.prefix == 0 and #tag.suffix ==
@@ -427,7 +420,7 @@ local function lex_definition_list_definition_item(body)
     local result = {}
     for _, item in pairs(body) do
         local tag = lex_proof_tag(item)
-        local location = get_proof_location(tag)
+        local location = get_location(tag)
         result[location] = item
     end
     return result
@@ -455,10 +448,10 @@ local function lex_definition_list_definition(head, body)
             end
         end
         -- Render the theorem identifier
-        theorem_info['previous-identifier'] = theorem_cache['previous-identifier']
+        theorem_info.previous_identifier = theorem_cache.previous_identifier
         theorem_info.identifier = render_theorem_identifier(theorem_info)
         -- Update the global previous theorem identifier
-        theorem_cache['previous-identifier'] = theorem_info.identifier
+        theorem_cache.previous_identifier = theorem_info.identifier
         return theorem_info
     else
         local msg_fmt = "WARNING: Could not lex theorem '%s'\n"
@@ -550,7 +543,7 @@ local function render_theorem_other(theorem_info)
         theorem_info.statement = statement
     end
     -- Render theorem restatement
-    if get_theorem_restatable() then
+    if get_restatable() then
         theorem_info.restatement = statement
     end
     return theorem_info
@@ -571,7 +564,7 @@ local function render_theorem_latex(theorem_info)
         header:insert(pandoc.RawInline('latex', string.format('\\renewcommand{\\the%s}{%s}',
             theorem_info.style.environment, theorem_info.custom_counter)))
     end
-    if get_theorem_restatable() then
+    if get_restatable() then
         -- Render theorem command
         local theorem_command_name = theorem_info.identifier:gsub("%A", "")
         -- Render theorem statement
@@ -607,7 +600,7 @@ local function render_theorem_latex(theorem_info)
     -- Add LaTeX cross-reference label to header
     header:insert(pandoc.RawInline('latex', string.format('\\label{%s}', theorem_info.identifier)))
     -- Render footer start
-    if get_theorem_restatable() then
+    if get_restatable() then
         footer:insert(pandoc.RawInline('latex', '\\end{restatable}'))
     else
         footer:insert(pandoc.RawInline('latex', string.format('\\end{%s}', theorem_info.style.environment)))
@@ -640,7 +633,7 @@ end
 
 --- Register a cross-reference target for theorem.
 local function register_theorem_target(theorem_info)
-    theorem_cache['targets'][theorem_info.identifier] = {
+    theorem_cache.targets[theorem_info.identifier] = {
         number = theorem_info.style.counter
     }
 end
@@ -701,12 +694,12 @@ local get_options = {
 --------------------------------------------------------------------------------
 
 local function require_proof_section()
-    local proof_section_cache = theorem_cache['proof-section-cache']
+    local proof_section_cache = theorem_cache.proofs
     return #proof_section_cache > 0
 end
 
 local function reset_proof_section_cache()
-    theorem_cache['proof-section-cache'] = {}
+    theorem_cache.proofs = {}
 end
 
 local function render_theorems(doc)
@@ -720,7 +713,7 @@ local function render_theorems(doc)
                 end
                 local output = pandoc.Blocks({})
                 output:insert(el)
-                for _, restatement_and_proof in pairs(theorem_cache['proof-section-cache']) do
+                for _, restatement_and_proof in pairs(theorem_cache.proofs) do
                     output:extend(restatement_and_proof)
                 end
                 reset_proof_section_cache()
@@ -738,25 +731,24 @@ local function render_theorems(doc)
                     if theorem_info.style.name ~= "Proof" then
                         -- Statements are rendered in-place
                         output:extend(theorem_info.statement)
-                        if proof_section_location ~= PROOF_LOCATION_INPLACE then
+                        if proof_section_location ~= LOCATION_INPLACE then
                             -- Add the statement to the restatement cache
-                            theorem_cache['restatement-cache'][theorem_info.identifier] = theorem_info.restatement
+                            theorem_cache.statements[theorem_info.identifier] = theorem_info.restatement
                         end
                     else
                         -- Proofs follow the proof-section location
-                        if theorem_info.statement[PROOF_LOCATION_INPLACE] ~= nil then
-                            output:extend(theorem_info.statement[PROOF_LOCATION_INPLACE])
+                        if theorem_info.statement[LOCATION_INPLACE] ~= nil then
+                            output:extend(theorem_info.statement[LOCATION_INPLACE])
                         end
-                        if proof_section_location ~= PROOF_LOCATION_INPLACE then
+                        if proof_section_location ~= LOCATION_INPLACE then
                             if theorem_info.statement[proof_section_location] ~= nil then
                                 -- Get the corresponding statement from the cache
-                                local restatement =
-                                    theorem_cache['restatement-cache'][theorem_info['previous-identifier']]
+                                local restatement = theorem_cache.statements[theorem_info.previous_identifier]
                                 assert(restatement ~= nil)
                                 local restatement_and_proof = pandoc.Blocks({})
                                 restatement_and_proof:extend(restatement)
                                 restatement_and_proof:extend(theorem_info.statement[proof_section_location])
-                                table.insert(theorem_cache['proof-section-cache'], restatement_and_proof)
+                                table.insert(theorem_cache.proofs, restatement_and_proof)
                             end
                         end
                     end
@@ -786,7 +778,7 @@ local save_theorem_targets = {
         if meta.crossref.targets == nil then
             meta.crossref.targets = {}
         end
-        for identifier, target in pairs(theorem_cache['targets']) do
+        for identifier, target in pairs(theorem_cache.targets) do
             meta.crossref.targets[identifier] = target
         end
         return meta
