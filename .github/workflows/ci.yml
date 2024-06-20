@@ -8,6 +8,7 @@ jobs:
   bubble:
     name: bubble / ${{ matrix.os }} / Pandoc ${{ matrix.pandoc-version }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest]
         pandoc-version:
@@ -50,6 +51,7 @@ jobs:
   crossref:
     name: crossref / ${{ matrix.os }} / Pandoc ${{ matrix.pandoc-version }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest]
         pandoc-version:
@@ -92,6 +94,7 @@ jobs:
   embed_pdf:
     name: embed_pdf / ${{ matrix.os }} / Pandoc ${{ matrix.pandoc-version }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest]
         pandoc-version:
@@ -134,6 +137,7 @@ jobs:
   possessive_cite:
     name: possessive_cite / ${{ matrix.os }} / Pandoc ${{ matrix.pandoc-version }}
     strategy:
+      fail-fast: false
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
@@ -183,6 +187,7 @@ jobs:
   theorem:
     name: theorem / ${{ matrix.os }} / Pandoc ${{ matrix.pandoc-version }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest]
         pandoc-version:
@@ -226,6 +231,7 @@ jobs:
   title_case:
     name: title_case / ${{ matrix.os }} / Pandoc ${{ matrix.pandoc-version }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest]
         pandoc-version:
