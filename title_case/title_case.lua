@@ -11,7 +11,7 @@ local TITLE_CASE_TITLE = 'title'
 local TITLE_CASE_SENTENCE = 'sentence'
 --
 -- Possible values for 'title_case_style' option:
-local TITLE_CASE_STYLE = 'AP'
+local TITLE_CASE_STYLE_AP = 'AP'
 --
 -- Exceptions for each title case style:
 local TITLE_CASE_EXCEPTIONS = {
@@ -23,7 +23,7 @@ local TITLE_CASE_EXCEPTIONS = {
 -- Default options:
 local title_case = {
     title_case = TITLE_CASE_TITLE,
-    title_case_style = TITLE_CASE_STYLE
+    title_case_style = TITLE_CASE_STYLE_AP
 }
 
 --------------------------------------------------------------------------------
@@ -45,7 +45,7 @@ local function get_exceptions()
 end
 
 local function is_exception(word)
-    return get_exceptions():includes(word)
+    return get_exceptions():includes(word:lower())
 
 end
 
