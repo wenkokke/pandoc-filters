@@ -53,7 +53,9 @@ local PATTERN_UNICODE_CHARACTER = "([%z\1-\127\194-\244][\128-\191]*)"
 local PATTERN_WORD_CHARACTER = "[abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ]"
 
 local function convert_word(word)
-    if not is_exception(word) then
+    if is_exception(word) then
+        word = word:lower()
+    else
         if word:len() >= 2 then
             word = word:sub(1, 1):upper() .. word:sub(2):lower()
         else
