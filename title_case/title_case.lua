@@ -52,8 +52,8 @@ end
 local PATTERN_UNICODE_CHARACTER = "([%z\1-\127\194-\244][\128-\191]*)"
 local PATTERN_WORD_CHARACTER = "[abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ]"
 
-local function convert_word(word)
-    if is_exception(word) then
+local function convert_word(word, first_word)
+    if first_word ~= true and is_exception(word) then
         word = word:lower()
     else
         if word:len() >= 2 then
@@ -70,21 +70,24 @@ local convert_Str = {
     Str = function(str)
         local text = ""
         local word = ""
+        local first_word = true
         for char in str.text:gmatch(PATTERN_UNICODE_CHARACTER) do
             local is_word_char = char:match(PATTERN_WORD_CHARACTER) ~= nil
             if is_word_char then
                 word = word .. char
             else
                 if word ~= "" then
-                    text = text .. convert_word(word)
+                    text = text .. convert_word(word, first_word)
                     word = ""
+                    first_word = false
                 end
                 text = text .. char
             end
         end
         if word ~= "" then
-            text = text .. convert_word(word)
+            text = text .. convert_word(word, first_word)
             word = ""
+            first_word = false
         end
         return pandoc.Str(text)
     end
