@@ -1,10 +1,9 @@
----Supper header case conversion.
+---Support header case conversion.
 ---
 ---@module title_case
 ---@author Wen Kokke
 ---@license MIT
 ---@copyright Wen Kokke 2024
---------------------------------------------------------------------------------
 --
 -- Possible values for 'title_case' option:
 local TITLE_CASE_TITLE = 'title'
