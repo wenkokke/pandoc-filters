@@ -84,7 +84,7 @@ local convert_Str = {
 }
 
 local convert_Header = {
-    Header = function(header))
+    Header = function(header)
         title_case.first_word = true
         header = pandoc.walk_block(header, convert_Str)
         return header
