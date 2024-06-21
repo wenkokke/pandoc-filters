@@ -22,7 +22,8 @@ local TITLE_CASE_EXCEPTIONS = {
 -- Default options:
 local title_case = {
     title_case = TITLE_CASE_TITLE,
-    title_case_style = TITLE_CASE_STYLE_AP
+    title_case_style = TITLE_CASE_STYLE_AP,
+    first_word = true
 }
 
 --------------------------------------------------------------------------------
@@ -43,24 +44,15 @@ local function get_exceptions()
     return title_case.title_case_exceptions
 end
 
-local function is_exception(word)
-    return get_exceptions():includes(word:lower())
-
-end
-
 local PATTERN_UNICODE_CHARACTER = "([%z\1-\127\194-\244][\128-\191]*)"
-local PATTERN_WORD_CHARACTER = "[abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ]"
+local PATTERN_ALPHA = "[abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ]"
 
-local function convert_word(word, first_word)
-    if first_word ~= true and is_exception(word) then
+local function convert_word(word)
+    local is_exception = get_exceptions():includes(word:lower())
+    if is_exception and not title_case.first_word then
         word = word:lower()
     else
-        if word:len() >= 2 then
-            word = word:sub(1, 1):upper() .. word:sub(2):lower()
-        else
-            word = word:upper()
-        end
-
+        word = word:sub(1, 1):upper() .. word:sub(2):lower()
     end
     return word
 end
@@ -69,31 +61,31 @@ local convert_Str = {
     Str = function(str)
         local text = ""
         local word = ""
-        local first_word = true
         for char in str.text:gmatch(PATTERN_UNICODE_CHARACTER) do
-            local is_word_char = char:match(PATTERN_WORD_CHARACTER) ~= nil
-            if is_word_char then
+            local is_alpha = char:match(PATTERN_ALPHA) ~= nil
+            if is_alpha then
                 word = word .. char
             else
                 if word ~= "" then
-                    text = text .. convert_word(word, first_word)
+                    text = text .. convert_word(word)
                     word = ""
-                    first_word = false
+                    title_case.first_word = false
                 end
                 text = text .. char
             end
         end
         if word ~= "" then
-            text = text .. convert_word(word, first_word)
+            text = text .. convert_word(word)
             word = ""
-            first_word = false
+            title_case.first_word = false
         end
         return pandoc.Str(text)
     end
 }
 
 local convert_Header = {
-    Header = function(header)
+    Header = function(header))
+        title_case.first_word = true
         header = pandoc.walk_block(header, convert_Str)
         return header
     end
