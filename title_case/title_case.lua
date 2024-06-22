@@ -48,13 +48,18 @@ local PATTERN_UNICODE_CHARACTER = "([%z\1-\127\194-\244][\128-\191]*)"
 local PATTERN_ALPHA = "[abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ]"
 
 local function convert_word(word)
+    -- If the word is written in all-caps, keep it that way.
+    local is_allcaps = word:match("^%u+$")
+    if is_allcaps then
+        return word
+    end
+    -- If the word is an exception, according the title style, lowercase it.
     local is_exception = get_exceptions():includes(word:lower())
     if is_exception and not title_case.first_word then
-        word = word:lower()
-    else
-        word = word:sub(1, 1):upper() .. word:sub(2):lower()
+        return word:lower()
     end
-    return word
+    -- Otherwise, capitalise the word.
+    return word:sub(1, 1):upper() .. word:sub(2):lower()
 end
 
 local convert_Str = {
