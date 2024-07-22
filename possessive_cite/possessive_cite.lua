@@ -6,8 +6,15 @@
 ---@copyright Wen Kokke 2023
 local possessive_cite = {}
 
--- Uses `pandoc.Inlines`, which was added in Pandoc 2.17.
-PANDOC_VERSION:must_be_at_least '2.17'
+-- Uses `pandoc.template.apply`, which was added in Pandoc 3.0.1.
+PANDOC_VERSION:must_be_at_least '3.0.1'
+
+-- Template for possesive citations.
+local possessive_cite_template = {
+    latex = [[
+    \citepos*${ if(has_suffix) }[${ suffix }]${ endif }{${ id }}
+    ]]
+}
 
 ---Check whether a value is a Pandoc element with the given tag.
 ---
@@ -57,41 +64,69 @@ local function render(els, index, inline)
     if els ~= nil then
         local cite = els[index]:clone()
         local poss = els[index + 1]:clone()
-        -- Get the citation content
-        local cite_content = cite.content
-        -- Remove the parenthetical and the final space
-        local parenthetical = cite_content[#cite_content]
-        local space = cite_content[#cite_content - 1]
-        local last_author_name = cite_content[#cite_content - 2]
-        if not is_a(parenthetical, 'Str') then
-            error("Expected parenthetical, found: '" .. pandoc.utils.stringify(parenthetical))
-        elseif not parenthetical.text:match("^%([^)]*%)$") then
-            if parenthetical.text:match("^@") then
-                io.stderr:write("Warning: unresolved citation '" .. parenthetical.text .. "'. Did you run Pandoc with --citeproc?\n")
-                return {cite, poss}
+        -- If using citeproc...
+        if PANDOC_WRITER_OPTIONS.cite_method == 'citeproc' then
+            -- Get the citation content
+            local cite_content = cite.content
+            -- Remove the parenthetical and the final space
+            local parenthetical = cite_content[#cite_content]
+            local space = cite_content[#cite_content - 1]
+            local last_author_name = cite_content[#cite_content - 2]
+            if not is_a(parenthetical, 'Str') then
+                error("Expected parenthetical, found: '" .. pandoc.utils.stringify(parenthetical))
+            elseif not parenthetical.text:match("^%([^)]*%)$") then
+                if parenthetical.text:match("^@") then
+                    io.stderr:write("Warning: unresolved citation '" .. parenthetical.text .. "'. Did you run Pandoc with --citeproc?\n")
+                    return {cite, poss}
+                else
+                    error("Expected parenthetical, found '" .. pandoc.utils.stringify(parenthetical))
+                end
+            elseif not is_a(space, "Space") then
+                error("Expected space, found: '" .. pandoc.utils.stringify(space))
+            elseif not is_a(last_author_name, "Str") then
+                error("Expected author name, found '" .. pandoc.utils.stringify(last_author_name))
             else
-                error("Expected parenthetical, found '" .. pandoc.utils.stringify(parenthetical))
+                -- Remove the last two elements
+                cite_content:remove(#cite_content)
+                cite_content:remove(#cite_content)
+                -- Append "’s"
+                if last_author_name.text:match("[sx]$") then
+                    last_author_name.text = last_author_name.text .. "’"
+                else
+                    last_author_name.text = last_author_name.text .. "’s"
+                end
+                -- Inline the citation content
+                if inline then
+                    return cite_content
+                else
+                    return {cite}
+                end
             end
-        elseif not is_a(space, "Space") then
-            error("Expected space, found: '" .. pandoc.utils.stringify(space))
-        elseif not is_a(last_author_name, "Str") then
-            error("Expected author name, found '" .. pandoc.utils.stringify(last_author_name))
-        else
-            -- Remove the last two elements
-            cite_content:remove(#cite_content)
-            cite_content:remove(#cite_content)
-            -- Append "’s"
-            if last_author_name.text:match("[sx]$") then
-                last_author_name.text = last_author_name.text .. "’"
+        -- If using natbib...
+        elseif PANDOC_WRITER_OPTIONS.cite_method == 'natbib' then
+            if not FORMAT:match('latex') then
+                error("Unsupported target format " .. FORMAT .. " with --natbib.")
+            end
+            if #cite.citations ~= 1 then
+                error("Multiple citations are unsupported.")
+            end
+            local citation = cite.citations[1]
+            local format = 'latex'
+            local template_string = possessive_cite_template[format]:match('^%s*(.*)\n%s*$')
+            local template = pandoc.template.compile(template_string)
+            local context = {id = citation.id}
+            if citation.suffix ~= nil and #citation.suffix > 0 then
+                context.has_suffix = true
+                context.suffix = citation.suffix
             else
-                last_author_name.text = last_author_name.text .. "’s"
+                context.has_suffix = false
             end
-            -- Inline the citation content
-            if inline then
-                return cite_content
-            else
-                return {cite}
-            end
+            local document = pandoc.template.apply(template, context)
+            local rendered = pandoc.layout.render(document)
+            return {pandoc.RawInline(format, rendered)}
+        -- If using biblatex...
+        elseif PANDOC_WRITER_OPTIONS.cite_method == 'biblatex' then
+            error("Unsupported option --biblatex.")
         end
     end
 end
@@ -128,4 +163,3 @@ function Inlines(els)
     local inline = FORMAT:match('latex') or FORMAT:match('markdown')
     return render_all(els, inline)
 end
-
