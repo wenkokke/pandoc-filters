@@ -63,6 +63,11 @@ local theorem = {
             counter = 1,
             environment = 'corollary'
         },
+        Counterexample = {
+            classes = {'counterexample'},
+            counter = 1,
+            environment = 'counterexample'
+        },
         Definition = {
             classes = {'definition'},
             counter = 1,
