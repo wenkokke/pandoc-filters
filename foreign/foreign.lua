@@ -36,7 +36,7 @@ function find_and_replace(str)
     local new_text = foreign.rules[str.text]
     if new_text ~= nil then
       local msg_fmt = "foreign: REPLACE '%s' -> '%s'\n"
-      io.stderr:write(string.format(msg_fmt, str.text, new_text))
+      pandoc.log.info(string.format(msg_fmt, str.text, new_text))
       return pandoc.Str(new_text)
     end
   end
