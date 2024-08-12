@@ -68,6 +68,11 @@ local theorem = {
             counter = 1,
             environment = 'counterexample'
         },
+        Convention = {
+            classes = {'convention'},
+            counter = 1,
+            environment = 'convention'
+        },
         Definition = {
             classes = {'definition'},
             counter = 1,
