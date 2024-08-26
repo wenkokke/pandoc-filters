@@ -6,44 +6,63 @@
 ---@copyright Wen Kokke 2023
 local foreign = {}
 
--- Find and replace rules
-local default_rules = {
-  ["en_GB"] = {
-    ["e.g.,"] = "e.g.",
-    ["i.e.,"] = "i.e.",
-  },
-  ["en_US"] = {
-    ["e.g."] = "e.g.,",
-    ["i.e."] = "i.e.,",
-  }
-}
-
-function get_options(meta)
-  -- Get language
-  if foreign.lang == nil then
-    if meta ~= nil and meta.lang ~= nil then
-      foreign.lang = tostring(meta.lang)
-    else
-      foreign.lang = "en_US"
-    end
-  end
-  -- Get rules
-  foreign.rules = default_rules[foreign.lang]
+local function word_boundary_at_start(text)
+    return text == nil or text == '' or string.match(text, '^%A')
 end
 
-function find_and_replace(str)
-  if str.t == 'Str' then
-    local new_text = foreign.rules[str.text]
-    if new_text ~= nil then
-      local msg_fmt = "foreign: REPLACE '%s' -> '%s'\n"
-      pandoc.log.info(string.format(msg_fmt, str.text, new_text))
-      return pandoc.Str(new_text)
+local function word_boundary_at_end(text)
+    return text == nil or text == '' or string.match(text, '%A$')
+end
+
+local function find_and_replace(str)
+    if str.t == 'Str' then
+        -- e.g.
+        local prefix, match, suffix = string.match(str.text, '(.*)(e%.g%.)(.*)')
+        if match ~= nil then
+            local result = pandoc.Inlines({})
+            if prefix ~= nil and prefix ~= '' then
+                result:insert(pandoc.Str(prefix))
+            end
+            result:insert(pandoc.RawInline('latex', '\\eg'))
+            if suffix ~= nil and suffix ~= '' and suffix ~= ',' then
+                result:insert(pandoc.Str(suffix))
+            end
+            return result
+        end
+        -- i.e.
+        local prefix, match, suffix = string.match(str.text, '(.*)(i%.e%.)(.*)')
+        if match ~= nil then
+            local result = pandoc.Inlines({})
+            if prefix ~= nil and prefix ~= '' then
+                result:insert(pandoc.Str(prefix))
+            end
+            result:insert(pandoc.RawInline('latex', '\\ie'))
+            if suffix ~= nil and suffix ~= '' and suffix ~= ',' then
+                result:insert(pandoc.Str(suffix))
+            end
+            return result
+        end
+        -- etc
+        local prefix, match, suffix = string.match(str.text, '(.*)(etc)(.*)')
+        if word_boundary_at_end(prefix) and match ~= nil and word_boundary_at_start(suffix) then
+            local result = pandoc.Inlines({})
+            if prefix ~= nil and prefix ~= '' then
+                result:insert(pandoc.Str(prefix))
+            end
+            result:insert(pandoc.RawInline('latex', '\\etc'))
+            if suffix ~= nil and suffix ~= '' then
+                result:insert(pandoc.Str(suffix))
+            end
+            return result
+        end
     end
-  end
 end
 
 function Pandoc(doc)
-  get_options(doc.meta)
-  doc = doc:walk({ Str = find_and_replace })
-  return doc
+    if FORMAT:match('latex') then
+        doc = doc:walk({
+            Str = find_and_replace
+        })
+        return doc
+    end
 end
