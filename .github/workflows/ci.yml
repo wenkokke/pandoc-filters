@@ -32,7 +32,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Get source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -78,7 +78,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Get source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -124,7 +124,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Get source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -170,7 +170,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Get source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -222,7 +222,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Get source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Pandoc ${{ matrix.pandoc-version }}
         uses: pandoc/actions/setup@v1.1.1
@@ -269,7 +269,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Get source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
